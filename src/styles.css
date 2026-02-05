@@ -133,8 +133,28 @@
 .better-recall-buttons-bar {
   margin-top: var(--size-4-5);
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
+}
+
+.better-recall-settings-button {
+  cursor: var(--cursor-link);
+  color: var(--text-muted);
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  padding: var(--size-2-1);
+  transition: opacity 100ms ease-in-out;
+}
+
+.better-recall-settings-button:hover {
+  opacity: 1;
+}
+
+.better-recall-settings-button .svg-icon {
+  width: var(--icon-size);
+  height: var(--icon-size);
 }
 
 .better-recall-centered-view {
@@ -167,22 +187,25 @@
 }
 
 .better-recall-deck-table td {
-  padding: 6px 10px 6px 10px;
+  padding: 16px 10px 16px 10px;
   text-align: left;
+  font-size: var(--font-ui-medium);
+  line-height: 1.5;
 }
 
 .better-recall-deck-table tr:nth-child(2) td {
-  padding: 16px 10px 6px 10px;
+  padding: 20px 10px 16px 10px;
 }
 
 .better-recall-deck-table tr:last-child td {
-  padding: 6px 10px 16px 10px;
+  padding: 16px 10px 20px 10px;
 }
 
 .better-recall-deck-table th {
-  padding: 10px;
+  padding: 14px 10px;
   text-align: left;
   border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-medium);
 }
 
 .better-recall-deck-table tr th:first-child {
@@ -201,20 +224,26 @@
   gap: var(--size-2-3);
 }
 
-.better-recall-deck__button .svg-icon {
-  cursor: var(--cursor-link);
-  display: none;
-  color: var(--text-muted);
-  opacity: 0.4;
-  width: var(--size-4-4);
-  transition: opacity 100ms ease-in-out;
-}
-.better-recall-deck__button .svg-icon:hover {
-  opacity: 1;
+.better-recall-deck__button {
+  padding: var(--size-2-2);
+  min-width: calc(var(--size-4-4) + var(--size-2-2) * 2);
+  min-height: calc(var(--size-4-4) + var(--size-2-2) * 2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.better-recall-deck-action--visible .svg-icon {
+.better-recall-deck__button .svg-icon {
+  cursor: var(--cursor-link);
   display: block;
+  color: var(--text-muted);
+  opacity: 0.6;
+  width: var(--size-4-4);
+  height: var(--size-4-4);
+  transition: opacity 100ms ease-in-out;
+}
+.better-recall-deck__button:hover .svg-icon {
+  opacity: 1;
 }
 
 .better-recall-card__add-options {
@@ -336,4 +365,32 @@
   color: var(--text-muted);
   margin-top: var(--size-2-1);
   font-weight: 500;
+}
+
+/* Mobile keyboard fix for modals */
+@media (max-width: 768px) {
+  /* Make modal container use dynamic viewport height that accounts for keyboard */
+  .modal-container {
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+  }
+
+  /* Make modal content scrollable */
+  .modal-content {
+    max-height: calc(100dvh - 120px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure modal can resize when keyboard appears */
+  .modal {
+    max-height: 100dvh !important;
+  }
+
+  /* When input is focused, scroll it into view */
+  .modal-content textarea:focus,
+  .modal-content input:focus {
+    scroll-margin-bottom: 20px;
+  }
 }

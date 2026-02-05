@@ -7,15 +7,60 @@ export class CreateDeckModal extends Modal {
   private deckNameInputComp: InputFieldComponent;
   private deckDescriptionInputComp: InputFieldComponent;
   private buttonsBarComp: ButtonsBarComponent;
+  private resizeHandler: (() => void) | null = null;
+  private focusHandler: ((e: FocusEvent) => void) | null = null;
 
   constructor(private plugin: BetterRecallPlugin) {
     super(plugin.app);
     this.setTitle('Create new deck');
   }
 
+  private scrollInputIntoView(inputEl: HTMLElement): void {
+    setTimeout(() => {
+      const modalContent = this.contentEl.closest('.modal-content') as HTMLElement;
+      if (modalContent) {
+        const inputRect = inputEl.getBoundingClientRect();
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+        
+        if (inputRect.bottom > viewportHeight - 20) {
+          const scrollAmount = inputRect.bottom - viewportHeight + 40;
+          modalContent.scrollTop += scrollAmount;
+        }
+      }
+    }, 300);
+  }
+
   onOpen(): void {
     super.onOpen();
     this.render();
+
+    // Add handlers for mobile keyboard
+    this.resizeHandler = () => {
+      const activeElement = document.activeElement as HTMLElement;
+      if (
+        activeElement &&
+        (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT') &&
+        this.contentEl.contains(activeElement)
+      ) {
+        this.scrollInputIntoView(activeElement);
+      }
+    };
+
+    this.focusHandler = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT')
+      ) {
+        this.scrollInputIntoView(target);
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', this.resizeHandler);
+    }
+    window.addEventListener('resize', this.resizeHandler);
+    this.contentEl.addEventListener('focusin', this.focusHandler, true);
   }
 
   private render(): void {
@@ -72,6 +117,18 @@ export class CreateDeckModal extends Modal {
   onClose(): void {
     this.deckNameInputComp.keyboardListener.cleanup();
     this.deckDescriptionInputComp.keyboardListener.cleanup();
+    
+    // Clean up mobile keyboard handlers
+    if (this.resizeHandler) {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', this.resizeHandler);
+      }
+      window.removeEventListener('resize', this.resizeHandler);
+    }
+    if (this.focusHandler) {
+      this.contentEl.removeEventListener('focusin', this.focusHandler, true);
+    }
+    
     super.onClose();
     this.contentEl.empty();
   }

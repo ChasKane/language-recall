@@ -1,7 +1,6 @@
 import { Plugin } from 'obsidian';
 import { registerCommands } from './commands';
 import {
-  AnkiParameters,
   BetterRecallData,
   BetterRecallSettings,
   DEFAULT_SETTINGS,
@@ -24,7 +23,7 @@ export default class BetterRecallPlugin extends Plugin {
     this.eventEmitter = new EventEmitter();
 
     await this.loadPluginData();
-    this.algorithm.setParameters(this.getSettings().ankiParameters);
+    this.algorithm.setParameters(this.getSettings().intervalMultiplier);
     await this.decksManager.load();
 
     this.registerView(FILE_VIEW_TYPE, (leaf) => new RecallView(this, leaf));
@@ -80,22 +79,9 @@ export default class BetterRecallPlugin extends Plugin {
     return this.data.settings;
   }
 
-  public setAnkiParameter(
-    key: keyof AnkiParameters,
-    value: number | number[],
-  ): void {
-    if (key === 'learningSteps' || key === 'relearningSteps') {
-      if (!Array.isArray(value)) {
-        return;
-      }
-
-      this.getSettings().ankiParameters[key] = value;
-      return;
-    }
-
-    if (typeof value === 'number') {
-      this.getSettings().ankiParameters[key] = value;
-    }
+  public setIntervalMultiplier(multiplier: number): void {
+    this.getSettings().intervalMultiplier = multiplier;
+    this.algorithm.setParameters(multiplier);
   }
 
   public setDecksFolderName(folderName: string): void {
@@ -122,3 +108,4 @@ export default class BetterRecallPlugin extends Plugin {
     await this.saveData(this.data);
   }
 }
+

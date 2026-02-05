@@ -17,7 +17,6 @@ import {
 import { EditCardsModal } from '../modals/EditCardsModal';
 import { AddItemEvent, EditDeckEvent } from 'src/data/event/events';
 
-const visibleClass = 'better-recall-deck-action--visible';
 const rowAttributes = {
   newCardsCount: {
     plain: 'data-new-cards-count',
@@ -189,29 +188,6 @@ export class DecksView extends RecallSubView {
     return deckRowEl.querySelector(rowAttributes.dueCardsCount.attr);
   }
 
-  private handleDeckRowMouseEnter(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const target = event.target as HTMLElement | undefined;
-    if (!target || !target.parentElement) {
-      return;
-    }
-
-    target.addClass(visibleClass);
-  }
-
-  private handleDeckRowMouseLeave(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const target = event.target as HTMLElement | null;
-    if (!target) {
-      return;
-    }
-
-    target?.removeClass(visibleClass);
-  }
 
   private renderDecks(): void {
     const decksCardEl = this.rootEl.createDiv('better-recall-card');
@@ -235,8 +211,6 @@ export class DecksView extends RecallSubView {
       const deckDataEl = deckRowEl.createEl('td', {
         cls: DECK_NAME,
       });
-      deckRowEl.addEventListener('mouseenter', this.handleDeckRowMouseEnter);
-      deckRowEl.addEventListener('mouseleave', this.handleDeckRowMouseLeave);
 
       const deckNameLink = deckDataEl.createEl('a', {
         text: deck.getName(),
@@ -307,6 +281,23 @@ export class DecksView extends RecallSubView {
   private renderButtons(): void {
     const buttonsBarEl = this.rootEl.createDiv('better-recall-buttons-bar');
 
+    // Settings button on the left
+    const settingsButtonEl = buttonsBarEl.createDiv('better-recall-settings-button');
+    settingsButtonEl.setAttr('role', 'button');
+    settingsButtonEl.setAttr('tabindex', '0');
+    settingsButtonEl.setAttr('title', 'Open settings');
+
+    const settingsIcon = getIcon('settings');
+    if (settingsIcon) {
+      settingsButtonEl.appendChild(settingsIcon);
+    }
+
+    settingsButtonEl.onClickEvent(() => {
+      this.plugin.app.setting.open();
+      this.plugin.app.setting.openTabById(this.plugin.manifest.id);
+    });
+
+    // Other buttons on the right
     new ButtonComponent(buttonsBarEl)
       .setButtonText('Create deck')
       .onClick(this.openDeckModal.bind(this));
@@ -331,11 +322,5 @@ export class DecksView extends RecallSubView {
     this.plugin
       .getEventEmitter()
       .off('deleteDeck', this.handleDeleteDeck.bind(this));
-
-    const deckRowEls = this.rootEl.querySelectorAll('.better-recall-deck');
-    deckRowEls.forEach((deckRowEl) => {
-      deckRowEl.removeEventListener('mouseenter', this.handleDeckRowMouseEnter);
-      deckRowEl.removeEventListener('mouseleave', this.handleDeckRowMouseLeave);
-    });
   }
 }

@@ -12,6 +12,8 @@ import { DEFAULT_SETTINGS } from 'src/settings/data';
 
 export abstract class CardModal extends Modal {
   private optionsContainerEl: HTMLElement;
+  private resizeHandler: (() => void) | null = null;
+  private focusHandler: ((e: FocusEvent) => void) | null = null;
 
   protected deckDropdownComp: DropdownComponent;
   protected frontInputComp: InputAreaComponent;
@@ -26,6 +28,23 @@ export abstract class CardModal extends Modal {
     super(plugin.app);
   }
 
+  private scrollInputIntoView(inputEl: HTMLElement): void {
+    // Small delay to ensure keyboard animation has started
+    setTimeout(() => {
+      const modalContent = this.contentEl.closest('.modal-content') as HTMLElement;
+      if (modalContent) {
+        const inputRect = inputEl.getBoundingClientRect();
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+        
+        // Check if input is below the visible area
+        if (inputRect.bottom > viewportHeight - 20) {
+          const scrollAmount = inputRect.bottom - viewportHeight + 40;
+          modalContent.scrollTop += scrollAmount;
+        }
+      }
+    }, 300);
+  }
+
   onOpen(): void {
     super.onOpen();
 
@@ -34,11 +53,54 @@ export abstract class CardModal extends Modal {
     );
 
     this.render();
+
+    // Add handlers for mobile keyboard
+    this.resizeHandler = () => {
+      const activeElement = document.activeElement as HTMLElement;
+      if (
+        activeElement &&
+        (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT') &&
+        this.contentEl.contains(activeElement)
+      ) {
+        this.scrollInputIntoView(activeElement);
+      }
+    };
+
+    this.focusHandler = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT')
+      ) {
+        this.scrollInputIntoView(target);
+      }
+    };
+
+    // Listen for viewport resize (keyboard appearing/disappearing)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', this.resizeHandler);
+    }
+    window.addEventListener('resize', this.resizeHandler);
+    
+    // Listen for focus events on inputs
+    this.contentEl.addEventListener('focusin', this.focusHandler, true);
   }
 
   onClose(): void {
     this.frontInputComp.keyboardListener.cleanup();
     this.backInputComp.keyboardListener.cleanup();
+    
+    // Clean up mobile keyboard handlers
+    if (this.resizeHandler) {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', this.resizeHandler);
+      }
+      window.removeEventListener('resize', this.resizeHandler);
+    }
+    if (this.focusHandler) {
+      this.contentEl.removeEventListener('focusin', this.focusHandler, true);
+    }
+    
     super.onClose();
     // Cards are saved immediately when added/updated/removed, so no need to save here
     this.contentEl.empty();

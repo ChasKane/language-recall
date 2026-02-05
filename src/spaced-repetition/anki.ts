@@ -1,4 +1,4 @@
-import { AnkiParameters, DEFAULT_SETTINGS } from '../settings/data';
+import { DEFAULT_SETTINGS } from '../settings/data';
 import { CardState, SpacedRepetitionAlgorithm, SpacedRepetitionItem } from '.';
 
 export enum PerformanceResponse {
@@ -10,130 +10,79 @@ export enum PerformanceResponse {
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export class AnkiAlgorithm extends SpacedRepetitionAlgorithm<AnkiParameters> {
-  public getDefaultValues(): AnkiParameters {
-    return DEFAULT_SETTINGS.ankiParameters;
+/**
+ * Simplified spaced repetition algorithm for language learning.
+ * Uses fixed intervals with a customizable multiplier.
+ */
+export class AnkiAlgorithm extends SpacedRepetitionAlgorithm<number> {
+  private baseIntervals = {
+    [PerformanceResponse.AGAIN]: 0, // immediate (0 days)
+    [PerformanceResponse.HARD]: 1, // 1 day
+    [PerformanceResponse.GOOD]: 7, // 7 days
+    [PerformanceResponse.EASY]: 21, // 21 days
+  };
+
+  constructor(parameters?: Partial<number>) {
+    super();
+    // Override constructor to handle number type correctly
+    // The base class tries to spread values which doesn't work for primitives
+    this.parameters = parameters ?? this.getDefaultValues();
   }
 
-  private get updateStrategies() {
-    return {
-      [PerformanceResponse.AGAIN]: (item: SpacedRepetitionItem) => {
-        item.easeFactor = Math.max(
-          this.parameters.minEaseFactor,
-          item.easeFactor - this.parameters.easeFactorDecrement,
-        );
-        if (item.state === CardState.REVIEW) {
-          item.state = CardState.RELEARNING;
-          item.stepIndex = 0;
-        } else {
-          item.stepIndex = 0;
-        }
-        return item.interval * this.parameters.lapseInterval;
-      },
-      [PerformanceResponse.HARD]: (item: SpacedRepetitionItem) => {
-        item.easeFactor = Math.max(
-          this.parameters.minEaseFactor,
-          item.easeFactor - this.parameters.easeFactorIncrement,
-        );
-        if (
-          item.state === CardState.LEARNING ||
-          item.state === CardState.RELEARNING
-        ) {
-          // Reset to first step instead of advancing
-          item.stepIndex = 0;
-        }
-        return Math.max(
-          item.interval * this.parameters.hardIntervalMultiplier,
-          item.interval + 1,
-        );
-      },
-      [PerformanceResponse.GOOD]: (item: SpacedRepetitionItem) => {
-        if (
-          item.state === CardState.NEW ||
-          item.state === CardState.LEARNING ||
-          item.state === CardState.RELEARNING
-        ) {
-          item.stepIndex += 1;
-          const steps =
-            item.state === CardState.LEARNING
-              ? this.parameters.learningSteps
-              : this.parameters.relearningSteps;
-          if (item.stepIndex >= steps.length) {
-            item.state = CardState.REVIEW;
-            return this.parameters.graduatingInterval;
-          }
+  public getDefaultValues(): number {
+    return DEFAULT_SETTINGS.intervalMultiplier;
+  }
 
-          return 0;
-        }
-        return Math.max(item.interval * item.easeFactor, item.interval + 1);
-      },
-      [PerformanceResponse.EASY]: (item: SpacedRepetitionItem) => {
-        item.easeFactor += this.parameters.easeFactorIncrement;
-        if (
-          item.state === CardState.NEW ||
-          item.state === CardState.LEARNING ||
-          item.state === CardState.RELEARNING
-        ) {
-          item.state = CardState.REVIEW;
-          return this.parameters.easyInterval;
-        }
+  /**
+   * Override setParameters to handle number type correctly.
+   * The base class assumes object types, but we're using a number.
+   */
+  public setParameters(parameters: Partial<number> | number): void {
+    if (typeof parameters === 'number') {
+      this.parameters = parameters;
+    } else if (parameters !== undefined && parameters !== null) {
+      // Partial<number> doesn't make sense, but handle it anyway
+      this.parameters = parameters as number;
+    }
+  }
 
-        return item.interval * item.easeFactor * this.parameters.easyBonus;
-      },
-    };
+  /**
+   * Get the multiplier for intervals.
+   * The multiplier is set by the user via the slider (0.5 to 2.0).
+   */
+  private getIntervalMultiplier(): number {
+    return this.parameters;
+  }
+
+  /**
+   * Get the next interval in days based on performance response.
+   */
+  private getNextIntervalDays(response: PerformanceResponse): number {
+    const baseInterval = this.baseIntervals[response];
+    const multiplier = this.getIntervalMultiplier();
+    return baseInterval * multiplier;
   }
 
   public calculatePotentialNextReviewDate(
     item: SpacedRepetitionItem,
     performanceResponse: PerformanceResponse,
   ): Date {
-    const newItem = { ...item };
-
-    if (newItem.state === CardState.NEW) {
-      newItem.state = CardState.LEARNING;
-      newItem.stepIndex = 0;
-    }
-
-    const newInterval = this.updateStrategies[performanceResponse](newItem);
-
-    const steps =
-      newItem.state === CardState.LEARNING
-        ? this.parameters.learningSteps
-        : this.parameters.relearningSteps;
-    if (
-      (newItem.state === CardState.LEARNING ||
-        newItem.state === CardState.RELEARNING) &&
-      newItem.stepIndex < steps.length
-    ) {
-      return this.calculateNextReviewDate(steps[newItem.stepIndex], true);
-    } else {
-      return this.calculateNextReviewDate(newInterval);
-    }
+    const intervalDays = this.getNextIntervalDays(performanceResponse);
+    return this.calculateNextReviewDate(intervalDays);
   }
 
   public scheduleReview(item: SpacedRepetitionItem): void {
     item.lastReviewDate = new Date();
 
-    if (
-      item.state === CardState.LEARNING ||
-      item.state === CardState.RELEARNING
-    ) {
-      const steps =
-        item.state === CardState.LEARNING
-          ? this.parameters.learningSteps
-          : this.parameters.relearningSteps;
-      if (item.stepIndex < steps.length) {
-        item.nextReviewDate = this.calculateNextReviewDate(
-          steps[item.stepIndex],
-          true,
-        );
-      } else {
-        item.nextReviewDate = this.calculateNextReviewDate(item.interval);
-        item.state = CardState.REVIEW;
-      }
-    } else if (item.state === CardState.NEW) {
-      item.nextReviewDate = new Date();
+    // New cards go straight to next review
+    if (item.state === CardState.NEW) {
+      item.state = CardState.REVIEW;
+      // Schedule for AGAIN interval (immediate/0 days)
+      const intervalDays = this.getNextIntervalDays(PerformanceResponse.AGAIN);
+      item.interval = intervalDays;
+      item.nextReviewDate = this.calculateNextReviewDate(intervalDays);
     } else {
+      // Existing cards keep their interval
       item.nextReviewDate = this.calculateNextReviewDate(item.interval);
     }
 
@@ -148,21 +97,17 @@ export class AnkiAlgorithm extends SpacedRepetitionAlgorithm<AnkiParameters> {
     item: SpacedRepetitionItem,
     performanceResponse: PerformanceResponse,
   ): void {
-    if (item.state === CardState.NEW) {
-      item.state = CardState.LEARNING;
-      item.stepIndex = 0;
-    }
-
-    item.interval = this.updateStrategies[performanceResponse](item);
+    // Calculate next interval based on response
+    const nextIntervalDays = this.getNextIntervalDays(performanceResponse);
+    item.interval = nextIntervalDays;
     item.iteration += 1;
 
     this.scheduleReview(item);
   }
 
-  private calculateNextReviewDate(interval: number, inMinutes = false): Date {
+  private calculateNextReviewDate(days: number): Date {
     const now = new Date();
-    const milliseconds =
-      interval * (inMinutes ? 60 * 1000 : MILLISECONDS_PER_DAY);
+    const milliseconds = days * MILLISECONDS_PER_DAY;
     return new Date(now.getTime() + milliseconds);
   }
 }
