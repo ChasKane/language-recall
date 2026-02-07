@@ -1,12 +1,4 @@
-import {
-  expect,
-  afterEach,
-  beforeEach,
-  describe,
-  it,
-  vi,
-  vitest,
-} from 'vitest';
+import { expect, afterEach, beforeEach, describe, it, vitest } from 'vitest';
 import { KeyboardListener } from './KeyboardListener';
 
 let inputEl: HTMLInputElement;

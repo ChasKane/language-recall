@@ -24,6 +24,9 @@ export class RecallView extends FileView {
   private decksView: DecksView;
 
   private viewMode: ViewMode;
+  private readonly handleAddDeckHandler = () => {
+    this.handleAddDeck();
+  };
 
   constructor(
     private plugin: BetterRecallPlugin,
@@ -51,9 +54,10 @@ export class RecallView extends FileView {
   }
 
   protected async onOpen(): Promise<void> {
+    await super.onOpen();
     this.renderView();
 
-    this.plugin.getEventEmitter().on('addDeck', this.handleAddDeck.bind(this));
+    this.plugin.getEventEmitter().on('addDeck', this.handleAddDeckHandler);
   }
 
   private handleAddDeck(): void {
@@ -112,7 +116,7 @@ export class RecallView extends FileView {
 
   protected async onClose(): Promise<void> {
     this.currentView?.onClose();
-    this.plugin.getEventEmitter().off('addDeck', this.handleAddDeck.bind(this));
+    this.plugin.getEventEmitter().off('addDeck', this.handleAddDeckHandler);
     await super.onClose();
   }
 

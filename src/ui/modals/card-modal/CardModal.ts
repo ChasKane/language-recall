@@ -14,6 +14,15 @@ export abstract class CardModal extends Modal {
   private optionsContainerEl: HTMLElement;
   private resizeHandler: (() => void) | null = null;
   private focusHandler: ((e: FocusEvent) => void) | null = null;
+  private readonly handleInputChangeHandler = () => {
+    this.handleInputChange();
+  };
+  private readonly handleTranslateHandler = () => {
+    void this.handleTranslate();
+  };
+  private readonly closeHandler = () => {
+    this.close();
+  };
 
   protected deckDropdownComp: DropdownComponent;
   protected frontInputComp: InputAreaComponent;
@@ -31,11 +40,14 @@ export abstract class CardModal extends Modal {
   private scrollInputIntoView(inputEl: HTMLElement): void {
     // Small delay to ensure keyboard animation has started
     setTimeout(() => {
-      const modalContent = this.contentEl.closest('.modal-content') as HTMLElement;
+      const modalContent = this.contentEl.closest(
+        '.modal-content',
+      ) as HTMLElement;
       if (modalContent) {
         const inputRect = inputEl.getBoundingClientRect();
-        const viewportHeight = window.visualViewport?.height || window.innerHeight;
-        
+        const viewportHeight =
+          window.visualViewport?.height || window.innerHeight;
+
         // Check if input is below the visible area
         if (inputRect.bottom > viewportHeight - 20) {
           const scrollAmount = inputRect.bottom - viewportHeight + 40;
@@ -59,7 +71,8 @@ export abstract class CardModal extends Modal {
       const activeElement = document.activeElement as HTMLElement;
       if (
         activeElement &&
-        (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT') &&
+        (activeElement.tagName === 'TEXTAREA' ||
+          activeElement.tagName === 'INPUT') &&
         this.contentEl.contains(activeElement)
       ) {
         this.scrollInputIntoView(activeElement);
@@ -81,7 +94,7 @@ export abstract class CardModal extends Modal {
       window.visualViewport.addEventListener('resize', this.resizeHandler);
     }
     window.addEventListener('resize', this.resizeHandler);
-    
+
     // Listen for focus events on inputs
     this.contentEl.addEventListener('focusin', this.focusHandler, true);
   }
@@ -89,7 +102,7 @@ export abstract class CardModal extends Modal {
   onClose(): void {
     this.frontInputComp.keyboardListener.cleanup();
     this.backInputComp.keyboardListener.cleanup();
-    
+
     // Clean up mobile keyboard handlers
     if (this.resizeHandler) {
       if (window.visualViewport) {
@@ -100,7 +113,7 @@ export abstract class CardModal extends Modal {
     if (this.focusHandler) {
       this.contentEl.removeEventListener('focusin', this.focusHandler, true);
     }
-    
+
     super.onClose();
     // Cards are saved immediately when added/updated/removed, so no need to save here
     this.contentEl.empty();
@@ -133,9 +146,9 @@ export abstract class CardModal extends Modal {
     }
 
     this.deckDropdownComp.selectEl.addClass('better-recall-field');
-    this.deckDropdownComp.onChange(async (value) => {
+    this.deckDropdownComp.onChange((value) => {
       this.plugin.setLastSelectedDeckId(value);
-      await this.plugin.savePluginData();
+      void this.plugin.savePluginData();
     });
   }
 
@@ -155,20 +168,20 @@ export abstract class CardModal extends Modal {
       description: 'Front',
     })
       .setValue(front ?? '')
-      .onChange(this.handleInputChange.bind(this));
+      .onChange(this.handleInputChangeHandler);
     this.frontInputComp.keyboardListener.onEnter = () => {
       if (this.disabled) {
         return;
       }
 
-      this.submit();
+      void this.submit();
     };
 
     this.backInputComp = new InputAreaComponent(this.contentEl, {
       description: '',
     })
       .setValue(back ?? '')
-      .onChange(this.handleInputChange.bind(this));
+      .onChange(this.handleInputChangeHandler);
 
     this.backFieldLabelContainer = this.contentEl.createDiv(
       'better-recall-back-field-container',
@@ -233,9 +246,9 @@ export abstract class CardModal extends Modal {
     this.sourceLangDropdownComp.selectEl.addClass(
       'better-recall-lang-dropdown',
     );
-    this.sourceLangDropdownComp.onChange(async (value) => {
+    this.sourceLangDropdownComp.onChange((value) => {
       this.plugin.setSourceLanguage(value);
-      await this.plugin.savePluginData();
+      void this.plugin.savePluginData();
     });
 
     // Swap button container
@@ -245,7 +258,7 @@ export abstract class CardModal extends Modal {
     const swapButton = new ButtonComponent(swapButtonContainer)
       .setButtonText('⇄')
       .setTooltip('Swap languages')
-      .onClick(async () => {
+      .onClick(() => {
         const sourceValue = this.sourceLangDropdownComp?.getValue() || 'en';
         const targetValue = this.targetLangDropdownComp?.getValue() || 'es';
         this.sourceLangDropdownComp?.setValue(targetValue);
@@ -253,7 +266,7 @@ export abstract class CardModal extends Modal {
         // Save swapped values
         this.plugin.setSourceLanguage(targetValue);
         this.plugin.setTargetLanguage(sourceValue);
-        await this.plugin.savePluginData();
+        void this.plugin.savePluginData();
       });
     swapButton.buttonEl.addClass('better-recall-lang-swap-button');
 
@@ -269,9 +282,9 @@ export abstract class CardModal extends Modal {
     this.targetLangDropdownComp.selectEl.addClass(
       'better-recall-lang-dropdown',
     );
-    this.targetLangDropdownComp.onChange(async (value) => {
+    this.targetLangDropdownComp.onChange((value) => {
       this.plugin.setTargetLanguage(value);
-      await this.plugin.savePluginData();
+      void this.plugin.savePluginData();
     });
 
     const translateButtonContainer = translateControlsContainer.createDiv(
@@ -280,7 +293,7 @@ export abstract class CardModal extends Modal {
     this.translateButtonComp = new ButtonComponent(translateButtonContainer)
       .setButtonText('Translate')
       .setTooltip('Translate text')
-      .onClick(this.handleTranslate.bind(this));
+      .onClick(this.handleTranslateHandler);
     this.translateButtonComp.buttonEl.addClass(
       'better-recall-translate-button',
     );
@@ -292,7 +305,7 @@ export abstract class CardModal extends Modal {
         return;
       }
 
-      this.submit();
+      void this.submit();
     };
   }
 
@@ -357,12 +370,14 @@ export abstract class CardModal extends Modal {
     this.buttonsBarComp = new ButtonsBarComponent(options.container)
       .setSubmitButtonDisabled(true)
       .setSubmitText(submitText)
-      .onClose(this.close.bind(this));
+      .onClose(this.closeHandler);
 
     const submitButtonInBar =
       this.buttonsBarComp.buttonsBarEl.querySelector('button:last-child');
     if (submitButtonInBar) {
-      (submitButtonInBar as HTMLElement).addClass('better-recall--display-none');
+      (submitButtonInBar as HTMLElement).addClass(
+        'better-recall--display-none',
+      );
     }
 
     if (this.backFieldLabelContainer) {
@@ -372,7 +387,9 @@ export abstract class CardModal extends Modal {
       submitButtonComp.setButtonText(submitText);
       submitButtonComp.setCta();
       submitButtonComp.setDisabled(true);
-      submitButtonComp.onClick(this.submit.bind(this));
+      submitButtonComp.onClick(() => {
+        void this.submit();
+      });
       submitButtonComp.buttonEl.addClass('better-recall-submit-button');
 
       this.buttonsBarComp.setSubmitButtonDisabled = (disabled: boolean) => {
@@ -386,8 +403,12 @@ export abstract class CardModal extends Modal {
       };
     } else {
       if (submitButtonInBar) {
-        (submitButtonInBar as HTMLElement).removeClass('better-recall--display-none');
-        this.buttonsBarComp.onSubmit(this.submit.bind(this));
+        (submitButtonInBar as HTMLElement).removeClass(
+          'better-recall--display-none',
+        );
+        this.buttonsBarComp.onSubmit(() => {
+          void this.submit();
+        });
       }
     }
   }

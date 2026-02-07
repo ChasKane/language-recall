@@ -21,12 +21,13 @@ vi.mock('uuid', async () => {
 
 describe('Deck', () => {
   let mockAlgorithm: SpacedRepetitionAlgorithm<unknown>;
+  const mockNow = new Date(2024, 6, 4, 12, 0, 0); // Local noon to avoid TZ edge cases
 
   beforeEach(() => {
     mockAlgorithm = {
       isDueToday: vi.fn(),
     } as unknown as SpacedRepetitionAlgorithm<unknown>;
-    vi.useFakeTimers().setSystemTime(new Date('2024-07-04'));
+    vi.useFakeTimers().setSystemTime(mockNow);
   });
 
   afterEach(() => {
@@ -38,20 +39,21 @@ describe('Deck', () => {
     expect(deck.id).toBe('mocked-uuid');
     expect(deck.getName()).toBe('Test Deck');
     expect(deck.getDescription()).toBe('Test Description');
-    expect(deck.createdAt).toEqual(new Date('2024-07-04'));
-    expect(deck.updatedAt).toEqual(new Date('2024-07-04'));
+    expect(deck.createdAt).toEqual(mockNow);
+    expect(deck.updatedAt).toEqual(mockNow);
     expect(deck.cards).toEqual({});
   });
 
   it('`toJsonObject` should return correct JSON structure', () => {
     const deck = new Deck(mockAlgorithm, 'Test Deck', 'Test Description');
     const jsonObject = deck.toJsonObject();
+    const dateString = mockNow.toDateString();
     expect(jsonObject).toStrictEqual({
       id: 'mocked-uuid',
       name: 'Test Deck',
       description: 'Test Description',
-      createdAt: 'Thu Jul 04 2024',
-      updatedAt: 'Thu Jul 04 2024',
+      createdAt: dateString,
+      updatedAt: dateString,
       cards: {},
     });
   });

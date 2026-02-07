@@ -1,9 +1,5 @@
 import { parseYaml, stringifyYaml } from 'obsidian';
-import {
-  CardState,
-  CardType,
-  SpacedRepetitionItem,
-} from 'src/spaced-repetition';
+import { CardState, CardType } from 'src/spaced-repetition';
 import { DeckJsonStructure, CardJsonStructure } from './deck';
 
 export interface DeckFileMetadata {
@@ -67,7 +63,18 @@ export function parseDeckFile(content: string): DeckJsonStructure {
         continue; // Skip invalid lines
       }
 
-      const [id, front, back, stateStr, easeFactorStr, intervalStr, iterationStr, stepIndexStr, lastReviewDateStr, nextReviewDateStr] = parts;
+      const [
+        id,
+        front,
+        back,
+        stateStr,
+        easeFactorStr,
+        intervalStr,
+        iterationStr,
+        stepIndexStr,
+        lastReviewDateStr,
+        nextReviewDateStr,
+      ] = parts;
 
       const card: CardJsonStructure = {
         type: CardType.BASIC,
@@ -80,8 +87,14 @@ export function parseDeckFile(content: string): DeckJsonStructure {
         interval: parseFloat(intervalStr) || 0,
         iteration: parseInt(iterationStr, 10) || 0,
         stepIndex: parseInt(stepIndexStr, 10) || 0,
-        lastReviewDate: lastReviewDateStr && lastReviewDateStr !== 'null' ? lastReviewDateStr : undefined,
-        nextReviewDate: nextReviewDateStr && nextReviewDateStr !== 'null' ? nextReviewDateStr : undefined,
+        lastReviewDate:
+          lastReviewDateStr && lastReviewDateStr !== 'null'
+            ? new Date(lastReviewDateStr)
+            : undefined,
+        nextReviewDate:
+          nextReviewDateStr && nextReviewDateStr !== 'null'
+            ? new Date(nextReviewDateStr)
+            : undefined,
       };
 
       cards[id] = card;
@@ -123,8 +136,8 @@ export function stringifyDeckFile(deck: DeckJsonStructure): string {
       card.interval.toString(),
       card.iteration.toString(),
       card.stepIndex.toString(),
-      card.lastReviewDate ? new Date(card.lastReviewDate as unknown as string).toISOString() : 'null',
-      card.nextReviewDate ? new Date(card.nextReviewDate as unknown as string).toISOString() : 'null',
+      card.lastReviewDate ? card.lastReviewDate.toISOString() : 'null',
+      card.nextReviewDate ? card.nextReviewDate.toISOString() : 'null',
     ].join('|');
     cards.push(line);
   }
@@ -145,4 +158,3 @@ function escapePipe(text: string): string {
 function unescapePipe(text: string): string {
   return text.replace(/\\\|/g, '|').replace(/\\n/g, '\n');
 }
-

@@ -15,7 +15,11 @@ import {
   NEW_CARDS_COLOR,
 } from '../classes';
 import { EditCardsModal } from '../modals/EditCardsModal';
-import { AddItemEvent, EditDeckEvent } from 'src/data/event/events';
+import {
+  AddItemEvent,
+  DeleteItemEvent,
+  EditDeckEvent,
+} from 'src/data/event/events';
 
 const rowAttributes = {
   newCardsCount: {
@@ -34,21 +38,37 @@ const rowAttributes = {
 
 export class DecksView extends RecallSubView {
   private rootEl: HTMLElement;
+  private readonly handleAddDeckHandler = () => {
+    this.handleAddDeck();
+  };
+  private readonly handleEditDeckHandler = (event: EditDeckEvent) => {
+    this.handleEditDeck(event);
+  };
+  private readonly handleAddItemHandler = (event: AddItemEvent) => {
+    this.handleAddItem(event);
+  };
+  private readonly handleDeleteItemHandler = (event: DeleteItemEvent) => {
+    this.handleDeleteItem(event);
+  };
+  private readonly handleDeleteDeckHandler = () => {
+    this.handleDeleteDeck();
+  };
+  private readonly openDeckModalHandler = () => {
+    this.openDeckModal();
+  };
 
   constructor(plugin: BetterRecallPlugin, recallView: RecallView) {
     super(plugin, recallView);
 
-    this.plugin.getEventEmitter().on('addDeck', this.handleAddDeck.bind(this));
+    this.plugin.getEventEmitter().on('addDeck', this.handleAddDeckHandler);
+    this.plugin.getEventEmitter().on('editDeck', this.handleEditDeckHandler);
+    this.plugin.getEventEmitter().on('addItem', this.handleAddItemHandler);
     this.plugin
       .getEventEmitter()
-      .on('editDeck', this.handleEditDeck.bind(this));
-    this.plugin.getEventEmitter().on('addItem', this.handleAddItem.bind(this));
+      .on('deleteItem', this.handleDeleteItemHandler);
     this.plugin
       .getEventEmitter()
-      .on('deleteItem', this.handleDeleteItem.bind(this));
-    this.plugin
-      .getEventEmitter()
-      .on('deleteDeck', this.handleDeleteDeck.bind(this));
+      .on('deleteDeck', this.handleDeleteDeckHandler);
   }
 
   public render(): void {
@@ -92,7 +112,7 @@ export class DecksView extends RecallSubView {
     deckNameEl.title = deck.getDescription();
   }
 
-  private handleDeleteItem({ payload }: AddItemEvent): void {
+  private handleDeleteItem({ payload }: DeleteItemEvent): void {
     if (!payload) {
       return;
     }
@@ -188,7 +208,6 @@ export class DecksView extends RecallSubView {
     return deckRowEl.querySelector(rowAttributes.dueCardsCount.attr);
   }
 
-
   private renderDecks(): void {
     const decksCardEl = this.rootEl.createDiv('better-recall-card');
 
@@ -217,7 +236,7 @@ export class DecksView extends RecallSubView {
         title: deck.getDescription(),
       });
       deckNameLink.onClickEvent(() => {
-        this.recallView.startReviewingDeck(deck);
+        void this.recallView.startReviewingDeck(deck);
       });
 
       this.renderDeckButtons(deckDataEl, deck);
@@ -282,7 +301,9 @@ export class DecksView extends RecallSubView {
     const buttonsBarEl = this.rootEl.createDiv('better-recall-buttons-bar');
 
     // Settings button on the left
-    const settingsButtonEl = buttonsBarEl.createDiv('better-recall-settings-button');
+    const settingsButtonEl = buttonsBarEl.createDiv(
+      'better-recall-settings-button',
+    );
     settingsButtonEl.setAttr('role', 'button');
     settingsButtonEl.setAttr('tabindex', '0');
     settingsButtonEl.setAttr('title', 'Open settings');
@@ -293,14 +314,20 @@ export class DecksView extends RecallSubView {
     }
 
     settingsButtonEl.onClickEvent(() => {
-      this.plugin.app.setting.open();
-      this.plugin.app.setting.openTabById(this.plugin.manifest.id);
+      const appWithSettings = this.plugin.app as unknown as {
+        setting?: {
+          open?: () => void;
+          openTabById?: (id: string) => void;
+        };
+      };
+      appWithSettings.setting?.open?.();
+      appWithSettings.setting?.openTabById?.(this.plugin.manifest.id);
     });
 
     // Other buttons on the right
     new ButtonComponent(buttonsBarEl)
       .setButtonText('Create deck')
-      .onClick(this.openDeckModal.bind(this));
+      .onClick(this.openDeckModalHandler);
 
     new ButtonComponent(buttonsBarEl)
       .setButtonText('Add card')
@@ -311,16 +338,14 @@ export class DecksView extends RecallSubView {
   }
 
   public onClose(): void {
-    this.plugin.getEventEmitter().off('addDeck', this.handleAddDeck.bind(this));
+    this.plugin.getEventEmitter().off('addDeck', this.handleAddDeckHandler);
+    this.plugin.getEventEmitter().off('editDeck', this.handleEditDeckHandler);
+    this.plugin.getEventEmitter().off('addItem', this.handleAddItemHandler);
     this.plugin
       .getEventEmitter()
-      .off('editDeck', this.handleEditDeck.bind(this));
-    this.plugin.getEventEmitter().off('addItem', this.handleAddItem.bind(this));
+      .off('deleteItem', this.handleDeleteItemHandler);
     this.plugin
       .getEventEmitter()
-      .off('deleteItem', this.handleDeleteItem.bind(this));
-    this.plugin
-      .getEventEmitter()
-      .off('deleteDeck', this.handleDeleteDeck.bind(this));
+      .off('deleteDeck', this.handleDeleteDeckHandler);
   }
 }

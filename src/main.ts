@@ -19,7 +19,7 @@ export default class BetterRecallPlugin extends Plugin {
   private eventEmitter: EventEmitter;
 
   async onload() {
-    console.log('loading better recall');
+    console.debug('Loading Language Recall');
     this.eventEmitter = new EventEmitter();
 
     await this.loadPluginData();
@@ -37,7 +37,7 @@ export default class BetterRecallPlugin extends Plugin {
   }
 
   onunload() {
-    console.log('unloading better recall');
+    console.debug('Unloading Language Recall');
   }
 
   /**
@@ -45,7 +45,7 @@ export default class BetterRecallPlugin extends Plugin {
    */
   public openRecallView(): void {
     const leaf = this.app.workspace.getLeaf(false);
-    leaf.setViewState({
+    void leaf.setViewState({
       type: FILE_VIEW_TYPE,
       state: {},
     });
@@ -108,4 +108,3 @@ export default class BetterRecallPlugin extends Plugin {
     await this.saveData(this.data);
   }
 }
-

@@ -10,6 +10,9 @@ export class EditDeckModal extends Modal {
   private deckDescriptionInputComp: InputFieldComponent;
   private resizeHandler: (() => void) | null = null;
   private focusHandler: ((e: FocusEvent) => void) | null = null;
+  private readonly closeHandler = () => {
+    this.close();
+  };
 
   constructor(
     private plugin: BetterRecallPlugin,
@@ -21,11 +24,14 @@ export class EditDeckModal extends Modal {
 
   private scrollInputIntoView(inputEl: HTMLElement): void {
     setTimeout(() => {
-      const modalContent = this.contentEl.closest('.modal-content') as HTMLElement;
+      const modalContent = this.contentEl.closest(
+        '.modal-content',
+      ) as HTMLElement;
       if (modalContent) {
         const inputRect = inputEl.getBoundingClientRect();
-        const viewportHeight = window.visualViewport?.height || window.innerHeight;
-        
+        const viewportHeight =
+          window.visualViewport?.height || window.innerHeight;
+
         if (inputRect.bottom > viewportHeight - 20) {
           const scrollAmount = inputRect.bottom - viewportHeight + 40;
           modalContent.scrollTop += scrollAmount;
@@ -43,7 +49,8 @@ export class EditDeckModal extends Modal {
       const activeElement = document.activeElement as HTMLElement;
       if (
         activeElement &&
-        (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT') &&
+        (activeElement.tagName === 'TEXTAREA' ||
+          activeElement.tagName === 'INPUT') &&
         this.contentEl.contains(activeElement)
       ) {
         this.scrollInputIntoView(activeElement);
@@ -81,7 +88,7 @@ export class EditDeckModal extends Modal {
         return;
       }
 
-      this.editDeck();
+      void this.editDeck();
     };
     this.deckNameInputComp.descriptionEl.addClass(
       'better-recall-deck-name-field',
@@ -96,7 +103,7 @@ export class EditDeckModal extends Modal {
         return;
       }
 
-      this.editDeck();
+      void this.editDeck();
     };
     this.deckDescriptionInputComp.descriptionEl.addClass(
       'better-recall-deck-description-field',
@@ -108,20 +115,22 @@ export class EditDeckModal extends Modal {
     // Create custom delete button.
     const deleteButton = new ButtonComponent(buttonsContainer)
       .setButtonText('Delete')
-      .onClick(() => this.deleteDeck());
+      .onClick(() => {
+        void this.deleteDeck();
+      });
     deleteButton.buttonEl.addClass('better-recall-delete-button');
 
     // Renders the button bar.
     this.buttonsBarComp = new ButtonsBarComponent(buttonsContainer)
       .setSubmitText('Save')
       .setSubmitButtonDisabled(false)
-      .onClose(this.close.bind(this))
-      .onSubmit(async () => {
+      .onClose(this.closeHandler)
+      .onSubmit(() => {
         if (this.deckNameInputComp.getValue().length === 0) {
           return;
         }
 
-        await this.editDeck();
+        void this.editDeck();
       });
   }
 
@@ -146,7 +155,7 @@ export class EditDeckModal extends Modal {
   onClose(): void {
     this.deckNameInputComp.keyboardListener.cleanup();
     this.deckDescriptionInputComp.keyboardListener.cleanup();
-    
+
     // Clean up mobile keyboard handlers
     if (this.resizeHandler) {
       if (window.visualViewport) {
@@ -157,7 +166,7 @@ export class EditDeckModal extends Modal {
     if (this.focusHandler) {
       this.contentEl.removeEventListener('focusin', this.focusHandler, true);
     }
-    
+
     super.onClose();
     this.contentEl.empty();
   }

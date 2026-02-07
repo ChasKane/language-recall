@@ -1,42 +1,66 @@
 import { expect, vi, it, describe, beforeEach } from 'vitest';
 import { DecksManager } from './decks-manager';
 import {
+  CardState,
+  CardType,
   SpacedRepetitionAlgorithm,
   SpacedRepetitionItem,
 } from 'src/spaced-repetition';
 import { Deck } from '../deck';
 import BetterRecallPlugin from 'src/main';
+import { DEFAULT_SETTINGS } from 'src/settings/data';
 
-const mocks = vi.hoisted(() => ({
-  plugin: {
-    savePluginData: vi.fn(),
-    getData: vi.fn(() => ({
-      decks: [
-        { id: 'deck1', name: 'Deck 1', description: 'Test deck', cards: {} },
-      ],
-    })),
-  },
-}));
+function createMockPlugin() {
+  const adapter = {
+    exists: vi.fn(async () => true),
+    mkdir: vi.fn(async () => undefined),
+    list: vi.fn(async () => ({ files: [], folders: [] })),
+    read: vi.fn(async () => ''),
+    write: vi.fn(async () => undefined),
+    remove: vi.fn(async () => undefined),
+    rmdir: vi.fn(async () => undefined),
+  };
 
-vi.mock('obsidian', async () => {
-  const actual = await vi.importActual('obsidian');
-  return { ...actual, normalizePath: vi.fn(() => '') };
-});
+  return {
+    app: {
+      vault: {
+        adapter,
+      },
+    },
+    getSettings: vi.fn(() => ({ ...DEFAULT_SETTINGS })),
+  };
+}
 
 describe('DecksManager', () => {
   let decksManager: DecksManager;
+  let plugin: ReturnType<typeof createMockPlugin>;
+  let adapter: ReturnType<typeof createMockPlugin>['app']['vault']['adapter'];
 
   beforeEach(() => {
     vi.clearAllMocks();
     const mockAlgorithm = {} as SpacedRepetitionAlgorithm<unknown>;
+    plugin = createMockPlugin();
+    adapter = plugin.app.vault.adapter;
     decksManager = new DecksManager(
-      mocks.plugin as unknown as BetterRecallPlugin,
+      plugin as unknown as BetterRecallPlugin,
       mockAlgorithm,
     );
   });
 
   describe('load', () => {
     it('should load existing decks', async () => {
+      adapter.list.mockResolvedValue({
+        files: ['Language Recall/abcd-Deck 1.md'],
+        folders: [],
+      });
+      adapter.read.mockResolvedValue(`---
+id: deck1
+name: Deck 1
+description: Test deck
+createdAt: 2024-01-01
+updatedAt: 2024-01-01
+---
+`);
       await decksManager.load();
       expect(decksManager.getDecks()).toHaveProperty('deck1');
     });
@@ -44,10 +68,9 @@ describe('DecksManager', () => {
 
   describe('create', () => {
     it('should create a new deck', async () => {
-      const spy = vi.spyOn(decksManager, 'save').mockResolvedValue();
       const deck = await decksManager.create('New Deck', 'New Description');
       expect(deck).toBeInstanceOf(Deck);
-      expect(spy).toHaveBeenCalled();
+      expect(adapter.write).toHaveBeenCalled();
     });
 
     it('should throw an error for invalid deck name', async () => {
@@ -92,19 +115,31 @@ describe('DecksManager', () => {
       const deck = await decksManager.create('Test Deck', 'Test Description');
       const card = {
         id: 'card1',
+        type: CardType.BASIC,
         content: { front: 'Hello', back: 'World' },
+        state: CardState.NEW,
+        easeFactor: 2.5,
+        interval: 0,
+        iteration: 0,
+        stepIndex: 0,
       } as SpacedRepetitionItem;
-      decksManager.addCard(deck.id, card);
+      await decksManager.addCard(deck.id, card);
       expect(deck.cards).toHaveProperty('card1');
     });
 
-    it('should throw an error for non-existent deck', () => {
+    it('should throw an error for non-existent deck', async () => {
       const card = {
         id: 'card1',
+        type: CardType.BASIC,
         content: { front: 'Hello', back: 'World' },
+        state: CardState.NEW,
+        easeFactor: 2.5,
+        interval: 0,
+        iteration: 0,
+        stepIndex: 0,
       } as SpacedRepetitionItem;
-      expect(() => decksManager.addCard('nonexistent', card)).toThrow(
-        'No deck with id found',
+      await expect(decksManager.addCard('nonexistent', card)).rejects.toThrow(
+        'No deck with id found: nonexistent',
       );
     });
   });
@@ -114,14 +149,26 @@ describe('DecksManager', () => {
       const deck = await decksManager.create('Test Deck', 'Test Description');
       const card = {
         id: 'card1',
+        type: CardType.BASIC,
         content: { front: 'Hello', back: 'World' },
+        state: CardState.NEW,
+        easeFactor: 2.5,
+        interval: 0,
+        iteration: 0,
+        stepIndex: 0,
       } as SpacedRepetitionItem;
-      decksManager.addCard(deck.id, card);
+      await decksManager.addCard(deck.id, card);
       const updatedCard = {
         id: 'card1',
+        type: CardType.BASIC,
         content: { front: 'foo', back: 'foo' },
+        state: CardState.NEW,
+        easeFactor: 2.5,
+        interval: 0,
+        iteration: 0,
+        stepIndex: 0,
       } as SpacedRepetitionItem;
-      decksManager.updateCardContent(deck.id, updatedCard);
+      await decksManager.updateCardContent(deck.id, updatedCard);
       expect(deck.cards['card1'].content.front).toBe('foo');
       expect(deck.cards['card1'].content.back).toBe('foo');
     });
@@ -132,9 +179,11 @@ describe('DecksManager', () => {
         id: 'card1',
         content: { front: 'foo', back: 'foo' },
       } as SpacedRepetitionItem;
-      expect(() =>
+      await expect(
         decksManager.updateCardContent(deck.id, updatedCard),
-      ).toThrow(`No card in deck with card id found: ${updatedCard.id}`);
+      ).rejects.toThrow(
+        `No card in deck with card id found: ${updatedCard.id}`,
+      );
     });
   });
 
@@ -143,18 +192,24 @@ describe('DecksManager', () => {
       const deck = await decksManager.create('Test deck', 'Test Description');
       const card = {
         id: 'card1',
+        type: CardType.BASIC,
         content: { front: 'Hello', back: 'World' },
+        state: CardState.NEW,
+        easeFactor: 2.5,
+        interval: 0,
+        iteration: 0,
+        stepIndex: 0,
       } as SpacedRepetitionItem;
-      decksManager.addCard(deck.id, card);
-      decksManager.removeCard(deck.id, 'card1');
+      await decksManager.addCard(deck.id, card);
+      await decksManager.removeCard(deck.id, 'card1');
       expect(deck.cards).not.toHaveProperty('card1');
     });
 
     it('should throw an error for non-existent card', async () => {
       const deck = await decksManager.create('Test Deck', 'Test Description');
-      expect(() => decksManager.removeCard(deck.id, 'nonexistent')).toThrow(
-        'No card in deck with card id found',
-      );
+      await expect(
+        decksManager.removeCard(deck.id, 'nonexistent'),
+      ).rejects.toThrow('No card in deck with card id found: nonexistent');
     });
   });
 

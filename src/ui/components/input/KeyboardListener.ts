@@ -1,4 +1,8 @@
 export class KeyboardListener {
+  private readonly onEnterPressHandler = (event: KeyboardEvent) => {
+    this.onEnterPress(event);
+  };
+
   constructor(
     private readonly inputEl: HTMLInputElement | HTMLTextAreaElement,
   ) {}
@@ -10,11 +14,11 @@ export class KeyboardListener {
   }
 
   public addKeyEnterAction(): void {
-    this.inputEl.addEventListener('keypress', this.onEnterPress.bind(this));
+    this.inputEl.addEventListener('keypress', this.onEnterPressHandler);
   }
 
   public removeKeyEnterAction(): void {
-    this.inputEl.removeEventListener('keypress', this.onEnterPress.bind(this));
+    this.inputEl.removeEventListener('keypress', this.onEnterPressHandler);
   }
 
   private onEnterPress(event: KeyboardEvent): void {

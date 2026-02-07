@@ -38,15 +38,12 @@ export abstract class SpacedRepetitionAlgorithm<T> {
 
   protected parameters: T;
 
-  constructor(parameters: Partial<T> = {}) {
+  constructor(parameters?: T) {
     this.items = [];
     this.queuedItems = [];
     this.sessionEndTime = this.getEndOfDay(new Date());
 
-    this.parameters = {
-      ...this.getDefaultValues(),
-      parameters,
-    };
+    this.parameters = parameters ?? this.getDefaultValues();
   }
 
   /**
@@ -98,11 +95,8 @@ export abstract class SpacedRepetitionAlgorithm<T> {
     }
   }
 
-  public setParameters(parameters: Partial<T>): void {
-    this.parameters = {
-      ...this.parameters,
-      ...parameters,
-    };
+  public setParameters(parameters: T): void {
+    this.parameters = parameters;
   }
 
   public getItemCount(): number {

@@ -16,6 +16,21 @@ const cardAttributes = {
 export class EditCardsModal extends Modal {
   private buttonsBarComp: ButtonsBarComponent;
   private showTimeUntilReview: boolean = false;
+  private readonly handleEditItemHandler = (event: EditItemEvent) => {
+    this.handleEditItem(event);
+  };
+  private readonly handleAddItemHandler = () => {
+    this.handleAddItem();
+  };
+  private readonly handleDeleteItemHandler = (event: DeleteItemEvent) => {
+    this.handleDeleteItem(event);
+  };
+  private readonly openAddCardModalHandler = () => {
+    this.openAddCardModal();
+  };
+  private readonly closeHandler = () => {
+    this.close();
+  };
 
   constructor(
     private plugin: BetterRecallPlugin,
@@ -29,13 +44,11 @@ export class EditCardsModal extends Modal {
     super.onOpen();
     this.render();
 
+    this.plugin.getEventEmitter().on('editItem', this.handleEditItemHandler);
+    this.plugin.getEventEmitter().on('addItem', this.handleAddItemHandler);
     this.plugin
       .getEventEmitter()
-      .on('editItem', this.handleEditItem.bind(this));
-    this.plugin.getEventEmitter().on('addItem', this.handleAddItem.bind(this));
-    this.plugin
-      .getEventEmitter()
-      .on('deleteItem', this.handleDeleteItem.bind(this));
+      .on('deleteItem', this.handleDeleteItemHandler);
   }
 
   private handleDeleteItem({ payload }: DeleteItemEvent): void {
@@ -91,14 +104,13 @@ export class EditCardsModal extends Modal {
       this.contentEl.empty();
       this.render();
     };
-    const checkboxLabel = checkboxContainer.createEl('label', {
+    checkboxContainer.createEl('label', {
       text: 'Show time until next review',
+      cls: 'better-recall-edit-cards-modal__checkbox-label',
       attr: {
         for: 'show-time-until-review',
       },
     });
-    checkboxLabel.style.cursor = 'pointer';
-    checkboxLabel.style.marginLeft = 'var(--size-2-2)';
 
     const decksCardEl = this.contentEl.createDiv(
       'better-recall-card better-recall__cards-list',
@@ -112,7 +124,7 @@ export class EditCardsModal extends Modal {
           },
         });
 
-        const cardContent = cardContainer.createEl('div', {
+        cardContainer.createEl('div', {
           text: `${card.content.front} :: ${card.content.back}`,
         });
 
@@ -149,8 +161,8 @@ export class EditCardsModal extends Modal {
     this.buttonsBarComp = new ButtonsBarComponent(this.contentEl)
       .setSubmitButtonDisabled(false)
       .setSubmitText('Add card')
-      .onSubmit(this.openAddCardModal.bind(this))
-      .onClose(this.close.bind(this));
+      .onSubmit(this.openAddCardModalHandler)
+      .onClose(this.closeHandler);
   }
 
   private getCardStateLabel(state: CardState): string {
@@ -174,13 +186,11 @@ export class EditCardsModal extends Modal {
 
   onClose(): void {
     super.onClose();
+    this.plugin.getEventEmitter().off('editItem', this.handleEditItemHandler);
+    this.plugin.getEventEmitter().off('addItem', this.handleAddItemHandler);
     this.plugin
       .getEventEmitter()
-      .off('editItem', this.handleEditItem.bind(this));
-    this.plugin.getEventEmitter().off('addItem', this.handleAddItem.bind(this));
-    this.plugin
-      .getEventEmitter()
-      .off('deleteItem', this.handleDeleteItem.bind(this));
+      .off('deleteItem', this.handleDeleteItemHandler);
     // Cards are saved immediately when added/updated/removed, so no need to save here
     this.contentEl.empty();
   }

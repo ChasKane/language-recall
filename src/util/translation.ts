@@ -24,27 +24,36 @@ async function tryTranslateWithVariations(
       });
 
       const data = response.json;
-      
+
       if (data.responseStatus === 200 && data.responseData?.translatedText) {
         const translated = data.responseData.translatedText;
-        
+
         if (translated.toLowerCase() !== variation.toLowerCase()) {
           if (text.split(/\s+/).length === 1 && variation !== text) {
-            if (text === text.toLowerCase() && translated !== translated.toLowerCase()) {
+            if (
+              text === text.toLowerCase() &&
+              translated !== translated.toLowerCase()
+            ) {
               return translated.toLowerCase();
             }
-            if (text === text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()) {
-              return translated.charAt(0).toUpperCase() + translated.slice(1).toLowerCase();
+            if (
+              text ===
+              text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
+            ) {
+              return (
+                translated.charAt(0).toUpperCase() +
+                translated.slice(1).toLowerCase()
+              );
             }
           }
           return translated;
         }
       }
-    } catch (error) {
+    } catch {
       continue;
     }
   }
-  
+
   return null;
 }
 
@@ -52,16 +61,17 @@ export async function translateText(
   text: string,
   options: TranslationOptions = {},
 ): Promise<string> {
-  const {
-    sourceLanguage = 'en',
-    targetLanguage = 'es',
-  } = options;
+  const { sourceLanguage = 'en', targetLanguage = 'es' } = options;
 
   if (!text || text.trim().length === 0) {
     throw new Error('Text to translate cannot be empty');
   }
 
-  const myMemoryResult = await tryTranslateWithVariations(text, sourceLanguage, targetLanguage);
+  const myMemoryResult = await tryTranslateWithVariations(
+    text,
+    sourceLanguage,
+    targetLanguage,
+  );
   if (myMemoryResult) {
     return myMemoryResult;
   }
@@ -89,19 +99,23 @@ export async function translateText(
       });
 
       const data = response.json;
-      
+
       if (data.error) {
         continue;
       }
 
-      if (data.translatedText && data.translatedText.toLowerCase() !== variation.toLowerCase()) {
+      if (
+        data.translatedText &&
+        data.translatedText.toLowerCase() !== variation.toLowerCase()
+      ) {
         return data.translatedText;
       }
-    } catch (error) {
+    } catch {
       continue;
     }
   }
 
-  throw new Error('Translation failed: Unable to translate text. The free APIs may have limitations with certain words or case variations.');
+  throw new Error(
+    'Translation failed: Unable to translate text. The free APIs may have limitations with certain words or case variations.',
+  );
 }
-

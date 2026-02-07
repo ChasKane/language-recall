@@ -22,28 +22,8 @@ export class AnkiAlgorithm extends SpacedRepetitionAlgorithm<number> {
     [PerformanceResponse.EASY]: 21, // 21 days
   };
 
-  constructor(parameters?: Partial<number>) {
-    super();
-    // Override constructor to handle number type correctly
-    // The base class tries to spread values which doesn't work for primitives
-    this.parameters = parameters ?? this.getDefaultValues();
-  }
-
   public getDefaultValues(): number {
     return DEFAULT_SETTINGS.intervalMultiplier;
-  }
-
-  /**
-   * Override setParameters to handle number type correctly.
-   * The base class assumes object types, but we're using a number.
-   */
-  public setParameters(parameters: Partial<number> | number): void {
-    if (typeof parameters === 'number') {
-      this.parameters = parameters;
-    } else if (parameters !== undefined && parameters !== null) {
-      // Partial<number> doesn't make sense, but handle it anyway
-      this.parameters = parameters as number;
-    }
   }
 
   /**

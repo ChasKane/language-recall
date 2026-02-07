@@ -7,6 +7,18 @@ import BetterRecallPlugin from 'src/main';
 import { parseDeckFile, stringifyDeckFile } from '../deck-file';
 
 export class DecksManager {
+  private static readonly INVALID_FILENAME_CHARS = new Set([
+    '<',
+    '>',
+    ':',
+    '"',
+    '/',
+    '\\',
+    '|',
+    '?',
+    '*',
+  ]);
+
   private decks: Record<string, Deck>;
   private algorithm: SpacedRepetitionAlgorithm<unknown>;
   private deckFilePaths: Record<string, string> = {}; // deckId -> file path
@@ -59,7 +71,7 @@ export class DecksManager {
   }
 
   public async create(deckName: string, description: string): Promise<Deck> {
-    console.log(`Creating deck: ${deckName}`);
+    console.debug(`Creating deck: ${deckName}`);
     deckName = deckName.trim();
     if (!this.isValidFileName(deckName)) {
       throw new Error(`Invalid deck name: ${deckName}`);
@@ -71,7 +83,7 @@ export class DecksManager {
 
     const deckData = new Deck(this.algorithm, deckName, description);
     this.decks[deckData.id] = deckData;
-    console.log(`Deck created with ID: ${deckData.id}`);
+    console.debug(`Deck created with ID: ${deckData.id}`);
 
     // Create the deck file
     await this.saveDeckToFile(deckData.id);
@@ -161,21 +173,21 @@ export class DecksManager {
       const content = stringifyDeckFile(deckJson);
       const filePath = this.getDeckFilePath(deckId, deck.getName());
 
-      console.log(`Saving deck to file: ${filePath}`);
+      console.debug(`Saving deck to file: ${filePath}`);
 
       // Ensure the decks folder exists
       const decksFolder = this.getDecksFolder();
-      console.log(`Checking decks folder: ${decksFolder}`);
+      console.debug(`Checking decks folder: ${decksFolder}`);
 
       if (!(await this.plugin.app.vault.adapter.exists(decksFolder))) {
-        console.log(`Creating decks folder: ${decksFolder}`);
+        console.debug(`Creating decks folder: ${decksFolder}`);
         await this.plugin.app.vault.adapter.mkdir(decksFolder);
       }
 
-      console.log(`Writing deck file: ${filePath}`);
+      console.debug(`Writing deck file: ${filePath}`);
       await this.plugin.app.vault.adapter.write(filePath, content);
       this.deckFilePaths[deckId] = filePath;
-      console.log(`Successfully saved deck to ${filePath}`);
+      console.debug(`Successfully saved deck to ${filePath}`);
     } catch (error) {
       console.error(`Failed to save deck ${deckId} to file:`, error);
       throw error;
@@ -185,7 +197,7 @@ export class DecksManager {
   private getDeckFilePath(deckId: string, deckName: string): string {
     // Use first 4 characters of deck ID as filename prefix to avoid conflicts with renamed decks
     const shortId = deckId.substring(0, 4);
-    const sanitizedName = deckName.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
+    const sanitizedName = this.sanitizeFileName(deckName);
     const decksFolder = this.getDecksFolder();
     return `${decksFolder}/${shortId}-${sanitizedName}.md`;
   }
@@ -251,16 +263,16 @@ export class DecksManager {
         // If it doesn't work, the folder will remain empty but that's okay
         try {
           await this.plugin.app.vault.adapter.rmdir(oldFolder, false);
-        } catch (rmdirError) {
+        } catch {
           // rmdir might not be available or might fail, that's okay
-          console.log(
+          console.debug(
             `Could not remove old folder ${oldFolder}, it will remain empty`,
           );
         }
       }
-    } catch (listError) {
+    } catch {
       // If we can't list the folder, we can't remove it safely
-      console.log(`Could not check old folder ${oldFolder} for removal`);
+      console.debug(`Could not check old folder ${oldFolder} for removal`);
     }
   }
 
@@ -319,10 +331,10 @@ export class DecksManager {
       return false;
     }
 
-    // eslint-disable-next-line
-    const invalidChars = /[<>:"/\\|?*\x00-\x1F]/;
-    if (invalidChars.test(fileName)) {
-      return false;
+    for (let i = 0; i < fileName.length; i++) {
+      if (this.isInvalidFileNameChar(fileName[i])) {
+        return false;
+      }
     }
 
     if (fileName.endsWith('.')) {
@@ -330,5 +342,20 @@ export class DecksManager {
     }
 
     return true;
+  }
+
+  private sanitizeFileName(fileName: string): string {
+    let sanitized = '';
+    for (let i = 0; i < fileName.length; i++) {
+      const ch = fileName[i];
+      sanitized += this.isInvalidFileNameChar(ch) ? '_' : ch;
+    }
+    return sanitized;
+  }
+
+  private isInvalidFileNameChar(ch: string): boolean {
+    const code = ch.charCodeAt(0);
+    // Disallow ASCII control chars (U+0000 - U+001F) and reserved filename chars.
+    return code < 32 || DecksManager.INVALID_FILENAME_CHARS.has(ch);
   }
 }

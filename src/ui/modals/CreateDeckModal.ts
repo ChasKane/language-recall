@@ -9,6 +9,9 @@ export class CreateDeckModal extends Modal {
   private buttonsBarComp: ButtonsBarComponent;
   private resizeHandler: (() => void) | null = null;
   private focusHandler: ((e: FocusEvent) => void) | null = null;
+  private readonly closeHandler = () => {
+    this.close();
+  };
 
   constructor(private plugin: BetterRecallPlugin) {
     super(plugin.app);
@@ -17,11 +20,14 @@ export class CreateDeckModal extends Modal {
 
   private scrollInputIntoView(inputEl: HTMLElement): void {
     setTimeout(() => {
-      const modalContent = this.contentEl.closest('.modal-content') as HTMLElement;
+      const modalContent = this.contentEl.closest(
+        '.modal-content',
+      ) as HTMLElement;
       if (modalContent) {
         const inputRect = inputEl.getBoundingClientRect();
-        const viewportHeight = window.visualViewport?.height || window.innerHeight;
-        
+        const viewportHeight =
+          window.visualViewport?.height || window.innerHeight;
+
         if (inputRect.bottom > viewportHeight - 20) {
           const scrollAmount = inputRect.bottom - viewportHeight + 40;
           modalContent.scrollTop += scrollAmount;
@@ -39,7 +45,8 @@ export class CreateDeckModal extends Modal {
       const activeElement = document.activeElement as HTMLElement;
       if (
         activeElement &&
-        (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT') &&
+        (activeElement.tagName === 'TEXTAREA' ||
+          activeElement.tagName === 'INPUT') &&
         this.contentEl.contains(activeElement)
       ) {
         this.scrollInputIntoView(activeElement);
@@ -73,7 +80,7 @@ export class CreateDeckModal extends Modal {
         this.buttonsBarComp.setSubmitButtonDisabled(value.length === 0);
       });
     this.deckNameInputComp.keyboardListener.onEnter = () => {
-      this.createDeck();
+      void this.createDeck();
     };
     this.deckNameInputComp.descriptionEl.addClass(
       'better-recall-deck-name-field',
@@ -98,9 +105,9 @@ export class CreateDeckModal extends Modal {
     this.buttonsBarComp = new ButtonsBarComponent(this.contentEl)
       .setSubmitText('Create')
       .setSubmitButtonDisabled(true)
-      .onClose(this.close.bind(this))
-      .onSubmit(async () => {
-        await this.createDeck();
+      .onClose(this.closeHandler)
+      .onSubmit(() => {
+        void this.createDeck();
       });
   }
 
@@ -117,7 +124,7 @@ export class CreateDeckModal extends Modal {
   onClose(): void {
     this.deckNameInputComp.keyboardListener.cleanup();
     this.deckDescriptionInputComp.keyboardListener.cleanup();
-    
+
     // Clean up mobile keyboard handlers
     if (this.resizeHandler) {
       if (window.visualViewport) {
@@ -128,7 +135,7 @@ export class CreateDeckModal extends Modal {
     if (this.focusHandler) {
       this.contentEl.removeEventListener('focusin', this.focusHandler, true);
     }
-    
+
     super.onClose();
     this.contentEl.empty();
   }

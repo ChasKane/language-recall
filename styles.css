@@ -360,11 +360,67 @@
   padding: var(--size-2-2) 0;
 }
 
+.better-recall-edit-cards-modal__checkbox-label {
+  cursor: var(--cursor-link);
+  margin-left: var(--size-2-2);
+}
+
 .better-recall-edit-cards-modal__status {
   font-size: var(--font-smallest);
   color: var(--text-muted);
   margin-top: var(--size-2-1);
   font-weight: 500;
+}
+
+.better-recall-settings__slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-2);
+}
+
+.better-recall-settings__slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.better-recall-settings__slider {
+  flex: 1;
+}
+
+.better-recall-settings__slider-value {
+  min-width: 60px;
+  text-align: right;
+  font-weight: 600;
+}
+
+.better-recall-settings__intervals {
+  margin-top: var(--size-2-2);
+  padding: var(--size-2-2);
+  background-color: var(--background-secondary);
+  border-radius: var(--radius-s);
+  font-size: var(--font-ui-small);
+}
+
+.better-recall-settings__interval-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--size-2-1);
+}
+
+.better-recall-settings__interval-row:last-child {
+  margin-bottom: 0;
+}
+
+.better-recall-settings__interval-value {
+  font-weight: 600;
+}
+
+.better-recall-settings__warning {
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: var(--size-2-1);
+  margin-bottom: var(--size-4-3);
 }
 
 /* Mobile keyboard fix for modals */

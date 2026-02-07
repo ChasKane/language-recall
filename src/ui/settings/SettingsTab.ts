@@ -17,52 +17,77 @@ export class SettingsTab extends PluginSettingTab {
 
     // Interval multiplier setting with slider
     const multiplierSetting = new Setting(this.containerEl)
-      .setName('Review Interval Multiplier')
-      .setDesc('Adjust how often you see cards. Lower values = review sooner, Higher values = space out more.');
+      .setName('Review interval multiplier')
+      .setDesc(
+        'Adjust how often you see cards. Lower values = review sooner, higher values = space out more.',
+      );
 
-    const sliderContainer = multiplierSetting.controlEl.createDiv();
-    sliderContainer.style.display = 'flex';
-    sliderContainer.style.flexDirection = 'column';
-    sliderContainer.style.gap = '8px';
+    const sliderContainer = multiplierSetting.controlEl.createDiv(
+      'better-recall-settings__slider-container',
+    );
 
-    const sliderRow = sliderContainer.createDiv();
-    sliderRow.style.display = 'flex';
-    sliderRow.style.alignItems = 'center';
-    sliderRow.style.gap = '12px';
+    const sliderRow = sliderContainer.createDiv(
+      'better-recall-settings__slider-row',
+    );
 
     // Map multiplier (0.25-4.0) to slider (0-100)
     const MIN_MULTIPLIER = 0.25;
     const MAX_MULTIPLIER = 4.0;
     const multiplierToSlider = (mult: number): number => {
-      return ((mult - MIN_MULTIPLIER) / (MAX_MULTIPLIER - MIN_MULTIPLIER)) * 100;
+      return (
+        ((mult - MIN_MULTIPLIER) / (MAX_MULTIPLIER - MIN_MULTIPLIER)) * 100
+      );
     };
     const sliderToMultiplier = (sliderVal: number): number => {
-      return MIN_MULTIPLIER + (sliderVal / 100) * (MAX_MULTIPLIER - MIN_MULTIPLIER);
+      return (
+        MIN_MULTIPLIER + (sliderVal / 100) * (MAX_MULTIPLIER - MIN_MULTIPLIER)
+      );
     };
 
     const currentMultiplier = this.plugin.getSettings().intervalMultiplier;
     const slider = sliderRow.createEl('input', {
-      type: 'range',
-      min: '0',
-      max: '100',
-      step: '1',
-      value: multiplierToSlider(currentMultiplier).toString(),
+      attr: {
+        type: 'range',
+        min: '0',
+        max: '100',
+        step: '1',
+        value: multiplierToSlider(currentMultiplier).toString(),
+      },
     });
-    slider.style.flex = '1';
+    slider.addClass('better-recall-settings__slider');
 
     const valueDisplay = sliderRow.createSpan();
-    valueDisplay.style.minWidth = '60px';
-    valueDisplay.style.textAlign = 'right';
-    valueDisplay.style.fontWeight = 'bold';
+    valueDisplay.addClass('better-recall-settings__slider-value');
     valueDisplay.setText(currentMultiplier.toFixed(2));
 
     // Display calculated intervals
-    const intervalsContainer = sliderContainer.createDiv();
-    intervalsContainer.style.marginTop = '8px';
-    intervalsContainer.style.padding = '8px';
-    intervalsContainer.style.backgroundColor = 'var(--background-secondary)';
-    intervalsContainer.style.borderRadius = '4px';
-    intervalsContainer.style.fontSize = '0.9em';
+    const intervalsContainer = sliderContainer.createDiv(
+      'better-recall-settings__intervals',
+    );
+
+    const hardRow = intervalsContainer.createDiv(
+      'better-recall-settings__interval-row',
+    );
+    hardRow.createSpan({ text: 'Hard:' });
+    const hardValue = hardRow.createSpan({
+      cls: 'better-recall-settings__interval-value',
+    });
+
+    const goodRow = intervalsContainer.createDiv(
+      'better-recall-settings__interval-row',
+    );
+    goodRow.createSpan({ text: 'Good:' });
+    const goodValue = goodRow.createSpan({
+      cls: 'better-recall-settings__interval-value',
+    });
+
+    const easyRow = intervalsContainer.createDiv(
+      'better-recall-settings__interval-row',
+    );
+    easyRow.createSpan({ text: 'Easy:' });
+    const easyValue = easyRow.createSpan({
+      cls: 'better-recall-settings__interval-value',
+    });
 
     const updateIntervals = () => {
       const multiplier = sliderToMultiplier(parseFloat(slider.value));
@@ -73,29 +98,18 @@ export class SettingsTab extends PluginSettingTab {
       const goodInterval = (7 * multiplier).toFixed(1);
       const easyInterval = (21 * multiplier).toFixed(1);
 
-      intervalsContainer.innerHTML = `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Hard:</span>
-          <span style="font-weight: bold;">${hardInterval} days</span>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Good:</span>
-          <span style="font-weight: bold;">${goodInterval} days</span>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span>Easy:</span>
-          <span style="font-weight: bold;">${easyInterval} days</span>
-        </div>
-      `;
+      hardValue.setText(`${hardInterval} days`);
+      goodValue.setText(`${goodInterval} days`);
+      easyValue.setText(`${easyInterval} days`);
     };
 
     updateIntervals();
 
-    slider.addEventListener('input', async () => {
+    slider.addEventListener('input', () => {
       const multiplier = sliderToMultiplier(parseFloat(slider.value));
       updateIntervals();
       this.plugin.setIntervalMultiplier(multiplier);
-      await this.plugin.savePluginData();
+      void this.plugin.savePluginData();
     });
 
     // Add a separator
@@ -110,12 +124,10 @@ export class SettingsTab extends PluginSettingTab {
       );
 
     // Warning about file names
-    const warningDesc = this.containerEl.createDiv();
+    const warningDesc = this.containerEl.createDiv(
+      'better-recall-settings__warning setting-item-description',
+    );
     warningDesc.addClass('setting-item-description');
-    warningDesc.style.color = 'var(--text-muted)';
-    warningDesc.style.fontStyle = 'italic';
-    warningDesc.style.marginTop = 'var(--size-2-1)';
-    warningDesc.style.marginBottom = 'var(--size-4-3)';
     warningDesc.setText(
       '⚠️ Please do not manually rename or move individual deck files. Only change the folder name using this setting. The plugin manages file names automatically.',
     );
@@ -130,36 +142,41 @@ export class SettingsTab extends PluginSettingTab {
     });
 
     folderNameSetting.addButton((button: ButtonComponent) => {
-      button.setButtonText('Save').setCta().onClick(async () => {
-        if (!folderNameComponent) {
-          return;
-        }
+      button
+        .setButtonText('Save')
+        .setCta()
+        .onClick(() => {
+          if (!folderNameComponent) {
+            return;
+          }
 
-        const newFolderName = folderNameComponent.getValue().trim();
-        if (!newFolderName) {
-          return;
-        }
+          const newFolderName = folderNameComponent.getValue().trim();
+          if (!newFolderName) {
+            return;
+          }
 
-        try {
-          // Rename the folder and move all deck files
-          await this.plugin.decksManager.renameDecksFolder(newFolderName);
-          // Update the setting
-          this.plugin.setDecksFolderName(newFolderName);
-          await this.plugin.savePluginData();
+          void (async () => {
+            try {
+              // Rename the folder and move all deck files
+              await this.plugin.decksManager.renameDecksFolder(newFolderName);
+              // Update the setting
+              this.plugin.setDecksFolderName(newFolderName);
+              await this.plugin.savePluginData();
 
-          // Show success message
-          button.setButtonText('Saved!');
-          setTimeout(() => {
-            button.setButtonText('Save');
-          }, 2000);
-        } catch (error) {
-          console.error('Failed to rename decks folder:', error);
-          button.setButtonText('Error');
-          setTimeout(() => {
-            button.setButtonText('Save');
-          }, 2000);
-        }
-      });
+              // Show success message
+              button.setButtonText('Saved!');
+              setTimeout(() => {
+                button.setButtonText('Save');
+              }, 2000);
+            } catch (error) {
+              console.error('Failed to rename decks folder:', error);
+              button.setButtonText('Error');
+              setTimeout(() => {
+                button.setButtonText('Save');
+              }, 2000);
+            }
+          })();
+        });
     });
   }
 }
