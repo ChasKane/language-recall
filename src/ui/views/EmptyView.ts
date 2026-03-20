@@ -5,6 +5,7 @@ export class EmptyView extends RecallSubView {
 
   public render(): void {
     this.rootEl = this.recallView.rootEl.createDiv('better-recall-empty-view');
+    this.renderBackButton(this.rootEl, () => this.recallView.openDecksView());
     // Adds the `empty-state` class from Obsidian.
     this.rootEl.addClass('empty-state');
 
@@ -25,7 +26,7 @@ export class EmptyView extends RecallSubView {
       actionListContainerEl.createDiv('empty-state-action');
     createNewDeckActionEl.setText('Create new deck');
     createNewDeckActionEl.onClickEvent(() => {
-      this.openDeckModal();
+      this.recallView.openCreateDeckView();
     });
   }
 }

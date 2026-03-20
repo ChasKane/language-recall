@@ -8,6 +8,9 @@
 export function formatTimeDifference(futureDate: Date): string {
   const now = new Date();
   const differenceInMillis = futureDate.getTime() - now.getTime();
+  if (differenceInMillis <= 0) {
+    return 'now';
+  }
   const seconds = Math.floor(differenceInMillis / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);

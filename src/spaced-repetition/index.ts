@@ -85,7 +85,6 @@ export abstract class SpacedRepetitionAlgorithm<T> {
 
   public addItem(item: SpacedRepetitionItem): void {
     this.items.push(item);
-    this.scheduleReview(item);
   }
 
   public removeItem(item: SpacedRepetitionItem): void {
@@ -136,16 +135,10 @@ export abstract class SpacedRepetitionAlgorithm<T> {
   /**
    * Checks if an item is due for review today.
    * @param item The item to check.
-   * @returns True if the item is due today, false otherwise.
+   * @returns True if the item is due by end of today (including overdue), false otherwise.
    */
   public isDueToday(item: SpacedRepetitionItem): boolean {
-    const now = new Date();
-    return (
-      item.state === CardState.NEW ||
-      (!!item.nextReviewDate &&
-        item.nextReviewDate <= this.sessionEndTime &&
-        item.nextReviewDate?.toDateString() === now.toDateString())
-    );
+    return !!item.nextReviewDate && item.nextReviewDate <= this.sessionEndTime;
   }
 
   /**

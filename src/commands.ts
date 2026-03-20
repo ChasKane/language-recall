@@ -1,10 +1,9 @@
 import BetterRecallPlugin from './main';
-import { AddCardModal } from './ui/modals/card-modal/AddCardModal';
 
 export function registerCommands(plugin: BetterRecallPlugin): void {
   plugin.addCommand({
-    id: 'recall-view',
-    name: 'Recall',
+    id: 'open-decks',
+    name: 'Open decks',
     callback: () => {
       plugin.openRecallView();
     },
@@ -13,7 +12,7 @@ export function registerCommands(plugin: BetterRecallPlugin): void {
     id: 'add-card',
     name: 'Add card',
     callback: () => {
-      new AddCardModal(plugin).open();
+      void plugin.openRecallViewAndAddCard();
     },
   });
 }

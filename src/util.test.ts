@@ -13,6 +13,13 @@ afterEach(() => {
 });
 
 describe('formatTimeDifference', () => {
+  it('should return "now" for present or past dates', () => {
+    expect(formatTimeDifference(new Date(mockNow.getTime()))).toBe('now');
+    expect(formatTimeDifference(new Date(mockNow.getTime() - 30 * 1000))).toBe(
+      'now',
+    );
+  });
+
   it('should return "1 min" for exactly one minute or less than that', () => {
     const exactlyOneDate = new Date(mockNow.getTime() + 60 * 1000);
     expect(formatTimeDifference(exactlyOneDate)).toBe('1 min');

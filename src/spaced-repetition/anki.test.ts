@@ -15,6 +15,7 @@ function createSpacedRepetitionItem(content: string): SpacedRepetitionItem {
     iteration: 0,
     state: CardState.NEW,
     stepIndex: 0,
+    nextReviewDate: new Date(),
   };
 }
 

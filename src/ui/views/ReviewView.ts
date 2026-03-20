@@ -9,7 +9,7 @@ import {
   REVIEW_CARD_CONTENT,
   REVIEW_CARD_DIVIDER,
 } from '../classes';
-import { ButtonComponent, MarkdownRenderer } from 'obsidian';
+import { ButtonComponent, Component, MarkdownRenderer } from 'obsidian';
 import { formatTimeDifference } from 'src/util';
 
 enum ReviewState {
@@ -28,11 +28,22 @@ export class ReviewView extends RecallSubView {
   private cardFrontEl: HTMLElement;
   private dividerEl: HTMLElement;
   private cardBackEl: HTMLElement;
+  private editButtonContainerEl: HTMLElement;
+  private editButton: ButtonComponent;
   private showAnswerButton: ButtonComponent;
 
   private currentItem: SpacedRepetitionItem | null = null;
   private deck: Deck;
   private state: ReviewState;
+  private shouldResumeFromCardEditor = false;
+  private resumeWithRecallButtons = false;
+  private resumeItemId: string | null = null;
+
+  /** Component for MarkdownRenderer; short-lived so it can be unloaded and avoid memory leaks. */
+  private readonly markdownComponent = new Component();
+  private readonly handleKeyInputBound = this.handleKeyInput.bind(this);
+  private readonly handleInternalLinkClickBound =
+    this.handleInternalLinkClick.bind(this);
 
   constructor(
     protected readonly plugin: BetterRecallPlugin,
@@ -40,6 +51,7 @@ export class ReviewView extends RecallSubView {
   ) {
     super(plugin, recallView);
     this.vaultRootPath = plugin.app.vault.getRoot().path;
+    this.recallView.addChild(this.markdownComponent);
   }
 
   public async setDeck(deck: Deck): Promise<void> {
@@ -71,27 +83,45 @@ export class ReviewView extends RecallSubView {
     } else {
       if (event.key === '1') {
         // Handle again press.
-        this.handleResponse(PerformanceResponse.AGAIN);
+        void this.handleResponse(PerformanceResponse.AGAIN);
       } else if (event.key === '2') {
         // Handle hard press.
-        this.handleResponse(PerformanceResponse.HARD);
+        void this.handleResponse(PerformanceResponse.HARD);
       } else if (event.key === '3') {
         // Handle good press.
-        this.handleResponse(PerformanceResponse.GOOD);
+        void this.handleResponse(PerformanceResponse.GOOD);
       } else if (event.key === '4') {
         // Handle easy press.
-        this.handleResponse(PerformanceResponse.EASY);
+        void this.handleResponse(PerformanceResponse.EASY);
       }
     }
   }
 
   public render(): void {
     this.rootEl = this.recallView.rootEl.createDiv('better-recall-recall-view');
-    document.addEventListener('keypress', this.handleKeyInput.bind(this));
+    document.addEventListener('keypress', this.handleKeyInputBound);
+    this.renderBackButton(this.rootEl);
 
     this.contentEl = this.rootEl.createDiv(
       'better-recall-card better-recall-review-card',
     );
+
+    this.editButtonContainerEl = this.contentEl.createDiv(
+      'better-recall-review-card__edit-container better-recall--display-none',
+    );
+    this.editButton = new ButtonComponent(this.editButtonContainerEl);
+    this.editButton.buttonEl.addClass('better-recall-review-card__edit-button');
+    this.editButton.setButtonText('✏️ edit');
+    this.editButton.onClick(() => {
+      if (this.currentItem) {
+        this.markForCardEditorReturn();
+        this.recallView.openCardEditorView(
+          this.deck,
+          this.currentItem,
+          'review',
+        );
+      }
+    });
 
     this.cardFrontEl = this.contentEl.createEl('h3', {
       cls: REVIEW_CARD_CONTENT,
@@ -104,20 +134,54 @@ export class ReviewView extends RecallSubView {
     });
 
     this.renderAnswerButtons();
+    if (
+      this.shouldResumeFromCardEditor &&
+      this.state === ReviewState.ONGOING &&
+      this.currentItem
+    ) {
+      this.renderCurrentItem(this.currentItem);
+      if (this.resumeWithRecallButtons) {
+        this.showRecallButtons();
+      }
+      this.shouldResumeFromCardEditor = false;
+      this.resumeWithRecallButtons = false;
+      return;
+    }
     this.showNextItem();
+  }
+
+  private markForCardEditorReturn(): void {
+    this.shouldResumeFromCardEditor = true;
+    this.resumeWithRecallButtons = Boolean(
+      this.recallButtonsBarEl?.isConnected,
+    );
+    this.resumeItemId = this.currentItem?.id ?? null;
+  }
+
+  public prepareResumeFromCardEditor(): void {
+    if (!this.resumeItemId) {
+      return;
+    }
+    const latestDeck = this.plugin.decksManager.getDecks()[this.deck.id];
+    if (!latestDeck) {
+      return;
+    }
+    this.deck = latestDeck;
+    const latestItem = latestDeck.cards[this.resumeItemId];
+    if (latestItem) {
+      this.currentItem = latestItem;
+    } else {
+      // If the edited card was deleted/moved, continue with the next due card.
+      this.currentItem = null;
+      this.shouldResumeFromCardEditor = false;
+      this.resumeWithRecallButtons = false;
+    }
   }
 
   private renderAnswerButtons(): void {
     this.answerButtonsBarEl = this.rootEl.createDiv(
       `${BUTTONS_BAR_CLASS} better-recall-review-card__answer-buttons-bar`,
     );
-
-    const exitButton = new ButtonComponent(this.answerButtonsBarEl);
-    const exitEmojiEl = exitButton.buttonEl.createSpan();
-    const exitTextEl = exitButton.buttonEl.createSpan();
-    exitEmojiEl.setText('🚪');
-    exitTextEl.setText('Exit');
-    exitButton.onClick(() => this.recallView.openDecksView());
 
     this.showAnswerButton = new ButtonComponent(
       this.answerButtonsBarEl,
@@ -167,12 +231,13 @@ export class ReviewView extends RecallSubView {
         performanceResponse,
       );
     timeEl.setText(formatTimeDifference(nextReviewDate));
-    button.onClick(() => this.handleResponse(performanceResponse));
+    button.onClick(() => void this.handleResponse(performanceResponse));
   }
 
   private showRecallButtons(): void {
     this.cardBackEl.removeClass('better-recall--display-none');
     this.dividerEl.removeClass('better-recall--display-none');
+    this.editButtonContainerEl.removeClass('better-recall--display-none');
     this.answerButtonsBarEl.addClass('better-recall--display-none');
     this.renderRecallButtons();
   }
@@ -186,36 +251,11 @@ export class ReviewView extends RecallSubView {
 
     this.currentItem = this.plugin.algorithm.getNextReviewItem();
 
+    this.editButtonContainerEl.addClass('better-recall--display-none');
     this.dividerEl.addClass('better-recall--display-none');
     this.cardBackEl.addClass('better-recall--display-none');
     if (this.currentItem) {
-      // Need to empty the elements because `MarkdownRenderer` will always append
-      // the markdown to the elements.
-      this.cardFrontEl.empty();
-      this.cardBackEl.empty();
-
-      MarkdownRenderer.render(
-        this.plugin.app,
-        this.currentItem.content.front,
-        this.cardFrontEl,
-        this.vaultRootPath,
-        this.plugin,
-      );
-      MarkdownRenderer.render(
-        this.plugin.app,
-        this.currentItem.content.back,
-        this.cardBackEl,
-        this.vaultRootPath,
-        this.plugin,
-      );
-
-      // TODO: Check why event listeners are deactivated for internal links.
-      this.cardFrontEl.querySelectorAll('a.internal-link').forEach((link) => {
-        link.addEventListener('click', this.handleInternalLinkClick.bind(this));
-      });
-      this.cardBackEl.querySelectorAll('a.internal-link').forEach((link) => {
-        link.addEventListener('click', this.handleInternalLinkClick.bind(this));
-      });
+      this.renderCurrentItem(this.currentItem);
     } else {
       this.cardFrontEl.setText('Review session complete 🚀!');
       this.showAnswerButton.buttonEl.hide();
@@ -223,11 +263,45 @@ export class ReviewView extends RecallSubView {
     }
   }
 
+  private renderCurrentItem(item: SpacedRepetitionItem): void {
+    // Need to empty the elements because `MarkdownRenderer` will always append
+    // the markdown to the elements.
+    this.cardFrontEl.empty();
+    this.cardBackEl.empty();
+
+    void MarkdownRenderer.render(
+      this.plugin.app,
+      item.content.front,
+      this.cardFrontEl,
+      this.vaultRootPath,
+      this.markdownComponent,
+    );
+    void MarkdownRenderer.render(
+      this.plugin.app,
+      item.content.back,
+      this.cardBackEl,
+      this.vaultRootPath,
+      this.markdownComponent,
+    );
+
+    // TODO: Check why event listeners are deactivated for internal links.
+    this.cardFrontEl.querySelectorAll('a.internal-link').forEach((link) => {
+      link.addEventListener('click', this.handleInternalLinkClickBound);
+    });
+    this.cardBackEl.querySelectorAll('a.internal-link').forEach((link) => {
+      link.addEventListener('click', this.handleInternalLinkClickBound);
+    });
+  }
+
   private handleInternalLinkClick(event: MouseEvent): void {
     event.preventDefault();
     const href = (event.target as HTMLAnchorElement).getAttribute('data-href');
     if (href) {
-      this.plugin.app.workspace.openLinkText(href, this.vaultRootPath, true);
+      void this.plugin.app.workspace.openLinkText(
+        href,
+        this.vaultRootPath,
+        true,
+      );
     }
   }
 
@@ -244,18 +318,12 @@ export class ReviewView extends RecallSubView {
 
   public onClose(): void {
     super.onClose();
-    document.removeEventListener('keypress', this.handleKeyInput.bind(this));
+    document.removeEventListener('keypress', this.handleKeyInputBound);
     this.cardFrontEl.querySelectorAll('a.internal-link').forEach((link) => {
-      link.removeEventListener(
-        'click',
-        this.handleInternalLinkClick.bind(this),
-      );
+      link.removeEventListener('click', this.handleInternalLinkClickBound);
     });
     this.cardBackEl.querySelectorAll('a.internal-link').forEach((link) => {
-      link.removeEventListener(
-        'click',
-        this.handleInternalLinkClick.bind(this),
-      );
+      link.removeEventListener('click', this.handleInternalLinkClickBound);
     });
     // Cards are saved immediately after each review, so no need to save here
   }

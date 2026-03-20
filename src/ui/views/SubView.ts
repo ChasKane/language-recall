@@ -1,6 +1,6 @@
+import { ButtonComponent } from 'obsidian';
 import BetterRecallPlugin from 'src/main';
 import { RecallView } from '.';
-import { CreateDeckModal } from '../modals/CreateDeckModal';
 
 export abstract class RecallSubView {
   constructor(
@@ -10,10 +10,17 @@ export abstract class RecallSubView {
 
   public abstract render(): void;
 
-  public onClose() {}
-
-  protected openDeckModal(): void {
-    const modal = new CreateDeckModal(this.plugin);
-    modal.open();
+  protected renderBackButton(parent: HTMLElement, onBack?: () => void): void {
+    const backRowEl = parent.createDiv('better-recall-view-back-row');
+    const backButton = new ButtonComponent(backRowEl);
+    backButton.setButtonText('Back');
+    backButton.onClick((ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      (onBack ?? (() => this.recallView.handleBack()))();
+    });
+    backButton.buttonEl.addClass('better-recall-view-back-button');
   }
+
+  public onClose() {}
 }

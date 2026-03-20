@@ -5,6 +5,28 @@ export interface TranslationOptions {
   targetLanguage?: string;
 }
 
+function applySingleWordCaseHint(
+  sourceText: string,
+  translatedText: string,
+): string {
+  if (sourceText.split(/\s+/).length !== 1) {
+    return translatedText;
+  }
+  if (sourceText === sourceText.toLowerCase()) {
+    return translatedText.toLowerCase();
+  }
+  if (
+    sourceText ===
+    sourceText.charAt(0).toUpperCase() + sourceText.slice(1).toLowerCase()
+  ) {
+    return (
+      translatedText.charAt(0).toUpperCase() +
+      translatedText.slice(1).toLowerCase()
+    );
+  }
+  return translatedText;
+}
+
 async function tryTranslateWithVariations(
   text: string,
   sourceLanguage: string,
@@ -29,25 +51,59 @@ async function tryTranslateWithVariations(
         const translated = data.responseData.translatedText;
 
         if (translated.toLowerCase() !== variation.toLowerCase()) {
-          if (text.split(/\s+/).length === 1 && variation !== text) {
-            if (
-              text === text.toLowerCase() &&
-              translated !== translated.toLowerCase()
-            ) {
-              return translated.toLowerCase();
-            }
-            if (
-              text ===
-              text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
-            ) {
-              return (
-                translated.charAt(0).toUpperCase() +
-                translated.slice(1).toLowerCase()
-              );
-            }
+          if (variation !== text) {
+            return applySingleWordCaseHint(text, translated);
           }
           return translated;
         }
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function parseGoogleTranslatedText(payload: unknown): string | null {
+  if (!Array.isArray(payload) || !Array.isArray(payload[0])) {
+    return null;
+  }
+  const chunks = payload[0] as unknown[];
+  const translated = chunks
+    .map((chunk) =>
+      Array.isArray(chunk) && typeof chunk[0] === 'string' ? chunk[0] : '',
+    )
+    .join('')
+    .trim();
+  return translated.length > 0 ? translated : null;
+}
+
+async function tryTranslateWithGoogle(
+  text: string,
+  sourceLanguage: string,
+  targetLanguage: string,
+): Promise<string | null> {
+  const variations = [
+    text,
+    text.toLowerCase(),
+    text.charAt(0).toUpperCase() + text.slice(1).toLowerCase(),
+  ];
+
+  for (const variation of variations) {
+    try {
+      const response = await requestUrl({
+        url: `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sourceLanguage)}&tl=${encodeURIComponent(targetLanguage)}&dt=t&q=${encodeURIComponent(variation)}`,
+      });
+      const translated = parseGoogleTranslatedText(response.json);
+      if (!translated) {
+        continue;
+      }
+      if (translated.toLowerCase() !== variation.toLowerCase()) {
+        if (variation !== text) {
+          return applySingleWordCaseHint(text, translated);
+        }
+        return translated;
       }
     } catch {
       continue;
@@ -115,7 +171,16 @@ export async function translateText(
     }
   }
 
+  const googleResult = await tryTranslateWithGoogle(
+    text,
+    sourceLanguage,
+    targetLanguage,
+  );
+  if (googleResult) {
+    return googleResult;
+  }
+
   throw new Error(
-    'Translation failed: Unable to translate text. The free APIs may have limitations with certain words or case variations.',
+    'Translation failed: all translation providers were unable to translate this text.',
   );
 }

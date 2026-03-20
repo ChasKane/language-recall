@@ -31,6 +31,7 @@ beforeEach(() => {
     iteration: 0,
     state: CardState.NEW,
     stepIndex: 0,
+    nextReviewDate: new Date(),
     content: { front: 'Front', back: 'Back' },
   };
 });
@@ -41,10 +42,10 @@ describe('addItem', () => {
     expect(algorithm['items']).toContain(mockItem);
   });
 
-  it('should call `scheduleReview` for the added item', () => {
+  it('should not call `scheduleReview` for the added item', () => {
     const spy = vi.spyOn(algorithm, 'scheduleReview');
     algorithm.addItem(mockItem);
-    expect(spy).toHaveBeenCalledWith(mockItem);
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 
@@ -82,8 +83,24 @@ describe('startNewSession', () => {
 });
 
 describe('isDueToday', () => {
-  it('should return true for new items', () => {
+  it('should return true for cards due now', () => {
     expect(algorithm.isDueToday(mockItem)).toBe(true);
+  });
+
+  it('should return false for cards with no due date', () => {
+    const undatedItem = { ...mockItem, nextReviewDate: undefined };
+    expect(algorithm.isDueToday(undatedItem)).toBe(false);
+  });
+
+  it('should return true for overdue items', () => {
+    const overdueDate = new Date();
+    overdueDate.setDate(overdueDate.getDate() - 30);
+    const overdueItem = {
+      ...mockItem,
+      state: CardState.REVIEW,
+      nextReviewDate: overdueDate,
+    };
+    expect(algorithm.isDueToday(overdueItem)).toBe(true);
   });
 
   it('should return true for items due today', () => {

@@ -21,8 +21,11 @@ export class SettingsTab extends PluginSettingTab {
       .setDesc(
         'Adjust how often you see cards. Lower values = review sooner, higher values = space out more.',
       );
+    multiplierSetting.settingEl.addClass(
+      'better-recall-settings__multiplier-setting',
+    );
 
-    const sliderContainer = multiplierSetting.controlEl.createDiv(
+    const sliderContainer = multiplierSetting.settingEl.createDiv(
       'better-recall-settings__slider-container',
     );
 
@@ -30,28 +33,20 @@ export class SettingsTab extends PluginSettingTab {
       'better-recall-settings__slider-row',
     );
 
-    // Map multiplier (0.25-4.0) to slider (0-100)
     const MIN_MULTIPLIER = 0.25;
     const MAX_MULTIPLIER = 4.0;
-    const multiplierToSlider = (mult: number): number => {
-      return (
-        ((mult - MIN_MULTIPLIER) / (MAX_MULTIPLIER - MIN_MULTIPLIER)) * 100
-      );
-    };
-    const sliderToMultiplier = (sliderVal: number): number => {
-      return (
-        MIN_MULTIPLIER + (sliderVal / 100) * (MAX_MULTIPLIER - MIN_MULTIPLIER)
-      );
-    };
+    const MULTIPLIER_STEP = 0.05;
+    const snapMultiplier = (value: number): number =>
+      Math.round(value / MULTIPLIER_STEP) * MULTIPLIER_STEP;
 
     const currentMultiplier = this.plugin.getSettings().intervalMultiplier;
     const slider = sliderRow.createEl('input', {
       attr: {
         type: 'range',
-        min: '0',
-        max: '100',
-        step: '1',
-        value: multiplierToSlider(currentMultiplier).toString(),
+        min: MIN_MULTIPLIER.toString(),
+        max: MAX_MULTIPLIER.toString(),
+        step: MULTIPLIER_STEP.toString(),
+        value: snapMultiplier(currentMultiplier).toFixed(2),
       },
     });
     slider.addClass('better-recall-settings__slider');
@@ -90,7 +85,7 @@ export class SettingsTab extends PluginSettingTab {
     });
 
     const updateIntervals = () => {
-      const multiplier = sliderToMultiplier(parseFloat(slider.value));
+      const multiplier = snapMultiplier(parseFloat(slider.value));
       valueDisplay.setText(multiplier.toFixed(2));
 
       // Calculate intervals
@@ -106,7 +101,8 @@ export class SettingsTab extends PluginSettingTab {
     updateIntervals();
 
     slider.addEventListener('input', () => {
-      const multiplier = sliderToMultiplier(parseFloat(slider.value));
+      const multiplier = snapMultiplier(parseFloat(slider.value));
+      slider.value = multiplier.toFixed(2);
       updateIntervals();
       this.plugin.setIntervalMultiplier(multiplier);
       void this.plugin.savePluginData();
@@ -118,8 +114,9 @@ export class SettingsTab extends PluginSettingTab {
     // Decks folder name setting
     let folderNameComponent: TextComponent | null = null;
     const folderNameSetting = new Setting(this.containerEl)
-      .setName('Decks folder name')
+      .setName('Folder name for decks')
       .setDesc(
+        // eslint-disable-next-line obsidianmd/ui/sentence-case -- Multi-sentence string
         'The name of the folder where deck files are stored. Click "Save" to rename the folder and move all existing decks.',
       );
 
@@ -129,6 +126,7 @@ export class SettingsTab extends PluginSettingTab {
     );
     warningDesc.addClass('setting-item-description');
     warningDesc.setText(
+      // eslint-disable-next-line obsidianmd/ui/sentence-case -- Multi-sentence string
       '⚠️ Please do not manually rename or move individual deck files. Only change the folder name using this setting. The plugin manages file names automatically.',
     );
 
@@ -138,7 +136,7 @@ export class SettingsTab extends PluginSettingTab {
         this.plugin.getSettings().decksFolderName ||
         DEFAULT_SETTINGS.decksFolderName;
       text.setValue(currentFolderName);
-      text.setPlaceholder('Language Recall');
+      text.setPlaceholder('Language recall');
     });
 
     folderNameSetting.addButton((button: ButtonComponent) => {

@@ -54,17 +54,11 @@ export class AnkiAlgorithm extends SpacedRepetitionAlgorithm<number> {
   public scheduleReview(item: SpacedRepetitionItem): void {
     item.lastReviewDate = new Date();
 
-    // New cards go straight to next review
+    // First successful review moves NEW cards into REVIEW lifecycle.
     if (item.state === CardState.NEW) {
       item.state = CardState.REVIEW;
-      // Schedule for AGAIN interval (immediate/0 days)
-      const intervalDays = this.getNextIntervalDays(PerformanceResponse.AGAIN);
-      item.interval = intervalDays;
-      item.nextReviewDate = this.calculateNextReviewDate(intervalDays);
-    } else {
-      // Existing cards keep their interval
-      item.nextReviewDate = this.calculateNextReviewDate(item.interval);
     }
+    item.nextReviewDate = this.calculateNextReviewDate(item.interval);
 
     this.addToQueueIfDueToday(item);
   }

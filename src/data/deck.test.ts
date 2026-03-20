@@ -67,24 +67,25 @@ describe('Deck', () => {
     expect(deck.cardsArray).toEqual([card1, card2]);
   });
 
-  it('learnCards should return cards in LEARNING or RELEARNING state', () => {
+  it('scheduledCards should return cards not due today', () => {
     const deck = new Deck(mockAlgorithm, 'Test Deck', 'Test Description');
-    const card1 = { id: '1', state: CardState.LEARNING };
-    const card2 = {
-      id: '2',
-      state: CardState.RELEARNING,
-    };
+    const card1 = { id: '1', state: CardState.REVIEW };
+    const card2 = { id: '2', state: CardState.NEW };
     const card3 = { id: '3', state: CardState.NEW };
     deck.cards['1'] = card1 as SpacedRepetitionItem;
     deck.cards['2'] = card2 as SpacedRepetitionItem;
     deck.cards['3'] = card3 as SpacedRepetitionItem;
-    expect(deck.learnCards).toEqual([card1, card2]);
+    (mockAlgorithm.isDueToday as Mock)
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    expect(deck.scheduledCards).toEqual([card1, card3]);
   });
 
-  it('dueCards should return due REVIEW cards', () => {
+  it('dueCards should return all cards due today', () => {
     const deck = new Deck(mockAlgorithm, 'Test Deck', 'Test Description');
     const card1 = { id: '1', state: CardState.REVIEW };
-    const card2 = { id: '2', state: CardState.REVIEW };
+    const card2 = { id: '2', state: CardState.NEW };
     deck.cards['1'] = card1 as SpacedRepetitionItem;
     deck.cards['2'] = card2 as SpacedRepetitionItem;
     (mockAlgorithm.isDueToday as Mock)
@@ -93,13 +94,16 @@ describe('Deck', () => {
     expect(deck.dueCards).toEqual([card1]);
   });
 
-  it('newCards should return cards in NEW state', () => {
+  it('dueCards should include all cards due today', () => {
     const deck = new Deck(mockAlgorithm, 'Test Deck', 'Test Description');
     const card1 = { id: '1', state: CardState.NEW };
     const card2 = { id: '2', state: CardState.REVIEW };
     deck.cards['1'] = card1 as SpacedRepetitionItem;
     deck.cards['2'] = card2 as SpacedRepetitionItem;
-    expect(deck.newCards).toEqual([card1]);
+    (mockAlgorithm.isDueToday as Mock)
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    expect(deck.dueCards).toEqual([card1]);
   });
 });
 

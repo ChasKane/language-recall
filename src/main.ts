@@ -53,6 +53,36 @@ export default class BetterRecallPlugin extends Plugin {
   }
 
   /**
+   * Opens recall in a newly created leaf with explicit navigation state.
+   */
+  public async openRecallViewInNewLeaf(
+    state: Record<string, unknown>,
+  ): Promise<void> {
+    const leaf = this.app.workspace.getLeaf(true);
+    await leaf.setViewState({
+      type: FILE_VIEW_TYPE,
+      state,
+    });
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
+  }
+
+  /**
+   * Opens the recall view and navigates to the add-card editor (for the "Add card" command).
+   */
+  public async openRecallViewAndAddCard(): Promise<void> {
+    const leaf = this.app.workspace.getLeaf(false);
+    await leaf.setViewState({
+      type: FILE_VIEW_TYPE,
+      state: {},
+    });
+    this.app.workspace.setActiveLeaf(leaf);
+    const view = leaf.view;
+    if (view?.getViewType?.() === FILE_VIEW_TYPE) {
+      (view as RecallView).openCardEditorView();
+    }
+  }
+
+  /**
    * Loads and initializes the data including the settings for the plugin.
    * First, it loads the existing data from the plugin and then checks for any missing
    * settings and applies default values where necessary.

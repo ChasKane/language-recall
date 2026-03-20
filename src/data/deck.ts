@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
-  CardState,
   SpacedRepetitionAlgorithm,
   SpacedRepetitionItem,
 } from '../spaced-repetition';
@@ -88,22 +87,9 @@ export class Deck {
     return Object.values(this.cards);
   }
 
-  public get learnCards(): SpacedRepetitionItem[] {
-    return this.cardsArray.reduce<SpacedRepetitionItem[]>((acc, curr) => {
-      if (
-        curr.state === CardState.LEARNING ||
-        curr.state === CardState.RELEARNING
-      ) {
-        acc.push(curr);
-      }
-
-      return acc;
-    }, []);
-  }
-
   public get dueCards(): SpacedRepetitionItem[] {
     return this.cardsArray.reduce<SpacedRepetitionItem[]>((acc, curr) => {
-      if (curr.state === CardState.REVIEW && this.algorithm.isDueToday(curr)) {
+      if (this.algorithm.isDueToday(curr)) {
         acc.push(curr);
       }
 
@@ -111,9 +97,9 @@ export class Deck {
     }, []);
   }
 
-  public get newCards(): SpacedRepetitionItem[] {
+  public get scheduledCards(): SpacedRepetitionItem[] {
     return this.cardsArray.reduce<SpacedRepetitionItem[]>((acc, curr) => {
-      if (curr.state === CardState.NEW) {
+      if (!this.algorithm.isDueToday(curr)) {
         acc.push(curr);
       }
 

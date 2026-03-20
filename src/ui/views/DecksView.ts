@@ -2,19 +2,8 @@ import { ButtonComponent, getIcon } from 'obsidian';
 import { RecallSubView } from './SubView';
 import BetterRecallPlugin from 'src/main';
 import { RecallView } from '.';
-import { EditDeckModal } from '../modals/EditDeckModal';
 import { Deck } from 'src/data/deck';
-import { AddCardModal } from '../modals/card-modal/AddCardModal';
-import {
-  DECK_BUTTON,
-  DECK_MAIN,
-  DECK_NAME,
-  DECK_TABLE,
-  DUE_CARDS_COLOR,
-  LEARN_CARDS_COLOR,
-  NEW_CARDS_COLOR,
-} from '../classes';
-import { EditCardsModal } from '../modals/EditCardsModal';
+import { DECK_BUTTON, DECK_MAIN, DUE_CARDS_COLOR } from '../classes';
 import {
   AddItemEvent,
   DeleteItemEvent,
@@ -22,22 +11,23 @@ import {
 } from 'src/data/event/events';
 
 const rowAttributes = {
-  newCardsCount: {
-    plain: 'data-new-cards-count',
-    attr: '[data-new-cards-count]',
-  },
-  learnCardsCount: {
-    plain: 'data-learn-cards-count',
-    attr: '[data-learn-cards-count]',
-  },
   dueCardsCount: {
     plain: 'data-due-cards-count',
     attr: '[data-due-cards-count]',
+  },
+  scheduledCardsCount: {
+    plain: 'data-scheduled-cards-count',
+    attr: '[data-scheduled-cards-count]',
+  },
+  totalCardsCount: {
+    plain: 'data-total-cards-count',
+    attr: '[data-total-cards-count]',
   },
 };
 
 export class DecksView extends RecallSubView {
   private rootEl: HTMLElement;
+  private contentEl: HTMLElement;
   private readonly handleAddDeckHandler = () => {
     this.handleAddDeck();
   };
@@ -53,13 +43,20 @@ export class DecksView extends RecallSubView {
   private readonly handleDeleteDeckHandler = () => {
     this.handleDeleteDeck();
   };
-  private readonly openDeckModalHandler = () => {
-    this.openDeckModal();
-  };
-
   constructor(plugin: BetterRecallPlugin, recallView: RecallView) {
     super(plugin, recallView);
+  }
 
+  public render(): void {
+    this.plugin.getEventEmitter().off('addDeck', this.handleAddDeckHandler);
+    this.plugin.getEventEmitter().off('editDeck', this.handleEditDeckHandler);
+    this.plugin.getEventEmitter().off('addItem', this.handleAddItemHandler);
+    this.plugin
+      .getEventEmitter()
+      .off('deleteItem', this.handleDeleteItemHandler);
+    this.plugin
+      .getEventEmitter()
+      .off('deleteDeck', this.handleDeleteDeckHandler);
     this.plugin.getEventEmitter().on('addDeck', this.handleAddDeckHandler);
     this.plugin.getEventEmitter().on('editDeck', this.handleEditDeckHandler);
     this.plugin.getEventEmitter().on('addItem', this.handleAddItemHandler);
@@ -69,10 +66,9 @@ export class DecksView extends RecallSubView {
     this.plugin
       .getEventEmitter()
       .on('deleteDeck', this.handleDeleteDeckHandler);
-  }
 
-  public render(): void {
     this.rootEl = this.recallView.rootEl.createDiv('better-recall-decks-view');
+    this.contentEl = this.rootEl.createDiv('better-recall-decks-view__content');
 
     this.renderDecks();
     this.renderButtons();
@@ -100,9 +96,8 @@ export class DecksView extends RecallSubView {
 
     const { deck } = payload;
 
-    // Updates the information based in the first column of the table.
     const deckNameEl = this.getDeckRowEl(deck.id)?.querySelector(
-      'a',
+      '.better-recall-deck-name__title',
     ) as HTMLElement | null;
     if (!deckNameEl) {
       return;
@@ -110,6 +105,37 @@ export class DecksView extends RecallSubView {
 
     deckNameEl.setText(deck.getName());
     deckNameEl.title = deck.getDescription();
+
+    const deckCardEl = this.getDeckRowEl(deck.id);
+    if (!deckCardEl) {
+      return;
+    }
+
+    const currentDescriptionEl = deckCardEl.querySelector(
+      '.better-recall-deck-card__description',
+    ) as HTMLElement | null;
+    const description = deck.getDescription();
+    if (!description) {
+      currentDescriptionEl?.remove();
+      return;
+    }
+
+    if (currentDescriptionEl) {
+      currentDescriptionEl.setText(description);
+      return;
+    }
+
+    const headerEl = deckCardEl.querySelector(
+      '.better-recall-deck-card__header',
+    );
+    if (!headerEl) {
+      return;
+    }
+
+    const descriptionEl = document.createElement('p');
+    descriptionEl.addClass('better-recall-deck-card__description');
+    descriptionEl.setText(description);
+    headerEl.insertAdjacentElement('afterend', descriptionEl);
   }
 
   private handleDeleteItem({ payload }: DeleteItemEvent): void {
@@ -124,7 +150,8 @@ export class DecksView extends RecallSubView {
       return;
     }
 
-    this.refreshNewCardsCount(deckId, deckRowEl);
+    this.refreshDueCardsCount(deckId, deckRowEl);
+    this.refreshTotalCardsCount(deckId, deckRowEl);
   }
 
   private handleAddItem({ payload }: AddItemEvent): void {
@@ -139,9 +166,8 @@ export class DecksView extends RecallSubView {
       return;
     }
 
-    this.refreshNewCardsCount(deckId, deckRowEl);
-    this.refreshLearnCardsCount(deckId, deckRowEl);
     this.refreshDueCardsCount(deckId, deckRowEl);
+    this.refreshTotalCardsCount(deckId, deckRowEl);
   }
 
   private refreshDueCardsCount(deckId: string, deckRowEl: HTMLElement): void {
@@ -155,26 +181,16 @@ export class DecksView extends RecallSubView {
     this.updateCount(cardsCountEl, cardsCount, DUE_CARDS_COLOR);
   }
 
-  private refreshLearnCardsCount(deckId: string, deckRowEl: HTMLElement): void {
-    const cardsCountEl = this.getLearnCardsCountEl(deckRowEl);
+  private refreshTotalCardsCount(deckId: string, deckRowEl: HTMLElement): void {
+    const cardsCountEl = this.getTotalCardsCountEl(deckRowEl);
     if (!cardsCountEl) {
       return;
     }
 
     const cardsCount =
-      this.plugin.decksManager.getDecks()[deckId].learnCards.length;
-    this.updateCount(cardsCountEl, cardsCount, LEARN_CARDS_COLOR);
-  }
-
-  private refreshNewCardsCount(deckId: string, deckRowEl: HTMLElement): void {
-    const cardsCountEl = this.getNewCardsCountEl(deckRowEl);
-    if (!cardsCountEl) {
-      return;
-    }
-
-    const cardsCount =
-      this.plugin.decksManager.getDecks()[deckId].newCards.length;
-    this.updateCount(cardsCountEl, cardsCount, NEW_CARDS_COLOR);
+      this.plugin.decksManager.getDecks()[deckId].cardsArray.length;
+    cardsCountEl.removeClass(DUE_CARDS_COLOR);
+    cardsCountEl.setText(String(cardsCount));
   }
 
   private updateCount(
@@ -196,75 +212,90 @@ export class DecksView extends RecallSubView {
     return this.recallView.rootEl.querySelector(`[data-deck-id="${deckId}"]`);
   }
 
-  private getNewCardsCountEl(deckRowEl: HTMLElement): HTMLElement | null {
-    return deckRowEl.querySelector(rowAttributes.newCardsCount.attr);
-  }
-
-  private getLearnCardsCountEl(deckRowEl: HTMLElement): HTMLElement | null {
-    return deckRowEl.querySelector(rowAttributes.learnCardsCount.attr);
-  }
-
   private getDueCardsCountEl(deckRowEl: HTMLElement): HTMLElement | null {
     return deckRowEl.querySelector(rowAttributes.dueCardsCount.attr);
   }
 
-  private renderDecks(): void {
-    const decksCardEl = this.rootEl.createDiv('better-recall-card');
+  private getTotalCardsCountEl(deckRowEl: HTMLElement): HTMLElement | null {
+    return deckRowEl.querySelector(rowAttributes.totalCardsCount.attr);
+  }
 
-    const tableEl = decksCardEl.createEl('table', {
-      cls: DECK_TABLE,
-    });
-    const headerRow = tableEl.createEl('tr');
-    headerRow.createEl('th', { text: 'Deck' });
-    headerRow.createEl('th', { text: 'New' });
-    headerRow.createEl('th', { text: 'Learn' });
-    headerRow.createEl('th', { text: 'Due' });
+  private renderDecks(): void {
+    const decksListEl = this.contentEl.createDiv('better-recall-decks-list');
 
     this.plugin.decksManager.decksArray.forEach((deck) => {
-      const deckRowEl = tableEl.createEl('tr', {
-        cls: DECK_MAIN,
+      const deckCardEl = decksListEl.createDiv({
+        cls: `better-recall-card ${DECK_MAIN}`,
         attr: {
           'data-deck-id': deck.id,
         },
       });
-      const deckDataEl = deckRowEl.createEl('td', {
-        cls: DECK_NAME,
-      });
+      const deckHeaderEl = deckCardEl.createDiv(
+        'better-recall-deck-card__header',
+      );
+      const deckTitleWrapEl = deckHeaderEl.createDiv(
+        'better-recall-deck-card__title-wrap',
+      );
 
-      const deckNameLink = deckDataEl.createEl('a', {
+      const deckNameLink = deckTitleWrapEl.createEl('a', {
         text: deck.getName(),
         title: deck.getDescription(),
       });
-      deckNameLink.onClickEvent(() => {
-        void this.recallView.startReviewingDeck(deck);
-      });
+      deckNameLink.addClass('better-recall-deck-name__title');
 
-      this.renderDeckButtons(deckDataEl, deck);
+      if (deck.getDescription()) {
+        deckTitleWrapEl.createEl('p', {
+          cls: 'better-recall-deck-card__description',
+          text: deck.getDescription(),
+        });
+      }
 
-      const newCardsLength = deck.newCards.length;
-      const learnCardsLength = deck.learnCards.length;
+      const headerActionsEl = deckHeaderEl.createDiv(
+        'better-recall-deck-card__header-actions',
+      );
+      this.renderDeckButtons(headerActionsEl, deck);
+
       const dueCardsLength = deck.dueCards.length;
+      const totalCardsLength = deck.cardsArray.length;
 
-      deckRowEl.createEl('td', {
-        text: `${newCardsLength}`,
-        attr: { [rowAttributes.newCardsCount.plain]: newCardsLength },
-        cls: newCardsLength > 0 ? NEW_CARDS_COLOR : '',
-      });
-      deckRowEl.createEl('td', {
-        text: `${learnCardsLength}`,
-        attr: { [rowAttributes.learnCardsCount.plain]: learnCardsLength },
-        cls: learnCardsLength > 0 ? LEARN_CARDS_COLOR : '',
-      });
-      deckRowEl.createEl('td', {
+      const deckStatsEl = deckCardEl.createDiv(
+        'better-recall-deck-card__stats',
+      );
+
+      const dueCountEl = deckStatsEl.createDiv('better-recall-deck-card__stat');
+      dueCountEl.createEl('span', { text: 'Due' });
+      dueCountEl.createEl('strong', {
         text: `${dueCardsLength}`,
         attr: { [rowAttributes.dueCardsCount.plain]: dueCardsLength },
         cls: dueCardsLength > 0 ? DUE_CARDS_COLOR : '',
       });
+
+      const totalCountEl = deckStatsEl.createDiv(
+        'better-recall-deck-card__stat',
+      );
+      totalCountEl.createEl('span', { text: 'Total' });
+      totalCountEl.createEl('strong', {
+        text: `${totalCardsLength}`,
+        attr: { [rowAttributes.totalCardsCount.plain]: totalCardsLength },
+      });
+
+      const footerEl = deckCardEl.createDiv('better-recall-deck-card__footer');
+      const addCardButton = new ButtonComponent(footerEl).setButtonText(
+        'Add card',
+      );
+      addCardButton.buttonEl.addClass('better-recall-deck-card__add-card');
+      addCardButton.onClick(() => {
+        this.recallView.openCardEditorView(deck, null, 'decks');
+      });
+
+      this.renderReviewButton(footerEl, deck);
     });
   }
 
   private renderDeckButtons(root: HTMLElement, deck: Deck): void {
-    const container = root.createDiv('better-recall-deck__buttons');
+    const container = root.createDiv(
+      'better-recall-deck-card__secondary-actions',
+    );
 
     const cardsButtonEl = container.createEl('div', {
       cls: DECK_BUTTON,
@@ -278,7 +309,7 @@ export class DecksView extends RecallSubView {
       cardsButtonEl.appendChild(walletCardsIcon);
     }
     cardsButtonEl.onClickEvent(() => {
-      new EditCardsModal(this.plugin, deck).open();
+      this.recallView.openCardsView(deck);
     });
 
     const editButtonEl = container.createEl('div', {
@@ -293,12 +324,24 @@ export class DecksView extends RecallSubView {
       editButtonEl.appendChild(penIcon);
     }
     editButtonEl.onClickEvent(() => {
-      new EditDeckModal(this.plugin, deck).open();
+      this.recallView.openEditDeckView(deck);
+    });
+  }
+
+  private renderReviewButton(root: HTMLElement, deck: Deck): void {
+    const reviewButton = new ButtonComponent(root)
+      .setButtonText('Review')
+      .setCta();
+    reviewButton.buttonEl.addClass('better-recall-deck-card__review-button');
+    reviewButton.buttonEl.setAttr('title', 'Start review');
+    reviewButton.onClick((ev) => {
+      ev.stopPropagation();
+      void this.recallView.startReviewingDeck(deck);
     });
   }
 
   private renderButtons(): void {
-    const buttonsBarEl = this.rootEl.createDiv('better-recall-buttons-bar');
+    const buttonsBarEl = this.contentEl.createDiv('better-recall-buttons-bar');
 
     // Settings button on the left
     const settingsButtonEl = buttonsBarEl.createDiv(
@@ -324,17 +367,9 @@ export class DecksView extends RecallSubView {
       appWithSettings.setting?.openTabById?.(this.plugin.manifest.id);
     });
 
-    // Other buttons on the right
     new ButtonComponent(buttonsBarEl)
       .setButtonText('Create deck')
-      .onClick(this.openDeckModalHandler);
-
-    new ButtonComponent(buttonsBarEl)
-      .setButtonText('Add card')
-      .setCta()
-      .onClick(() => {
-        new AddCardModal(this.plugin).open();
-      });
+      .onClick(() => this.recallView.openCreateDeckView());
   }
 
   public onClose(): void {
