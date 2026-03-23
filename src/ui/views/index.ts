@@ -103,7 +103,8 @@ export class RecallView extends FileView {
    * Only runs when this Recall leaf is active and the current screen can go back.
    */
   private tryHandleBackNavigation(ev?: Event): boolean {
-    const isActiveLeaf = this.plugin.app.workspace.activeLeaf === this.leaf;
+    const isActiveLeaf =
+      this.plugin.app.workspace.getActiveViewOfType(RecallView) === this;
     const canGoBack = this.canGoBack();
     const leafIsRecallView = this.leaf.view?.getViewType?.() === FILE_VIEW_TYPE;
     if (!isActiveLeaf) return false;

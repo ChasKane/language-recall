@@ -96,9 +96,9 @@ export class DecksView extends RecallSubView {
 
     const { deck } = payload;
 
-    const deckNameEl = this.getDeckRowEl(deck.id)?.querySelector(
+    const deckNameEl = this.getDeckRowEl(deck.id)?.querySelector<HTMLElement>(
       '.better-recall-deck-name__title',
-    ) as HTMLElement | null;
+    );
     if (!deckNameEl) {
       return;
     }
@@ -111,9 +111,9 @@ export class DecksView extends RecallSubView {
       return;
     }
 
-    const currentDescriptionEl = deckCardEl.querySelector(
+    const currentDescriptionEl = deckCardEl.querySelector<HTMLElement>(
       '.better-recall-deck-card__description',
-    ) as HTMLElement | null;
+    );
     const description = deck.getDescription();
     if (!description) {
       currentDescriptionEl?.remove();

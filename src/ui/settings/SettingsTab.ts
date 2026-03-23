@@ -116,8 +116,7 @@ export class SettingsTab extends PluginSettingTab {
     const folderNameSetting = new Setting(this.containerEl)
       .setName('Folder name for decks')
       .setDesc(
-        // eslint-disable-next-line obsidianmd/ui/sentence-case -- Multi-sentence string
-        'The name of the folder where deck files are stored. Click "Save" to rename the folder and move all existing decks.',
+        'The name of the folder where deck files are stored. Click save to rename the folder and move all existing decks.',
       );
 
     // Warning about file names
@@ -126,8 +125,7 @@ export class SettingsTab extends PluginSettingTab {
     );
     warningDesc.addClass('setting-item-description');
     warningDesc.setText(
-      // eslint-disable-next-line obsidianmd/ui/sentence-case -- Multi-sentence string
-      '⚠️ Please do not manually rename or move individual deck files. Only change the folder name using this setting. The plugin manages file names automatically.',
+      'Please do not manually rename or move individual deck files. Only change the folder name using this setting. The plugin manages file names automatically.',
     );
 
     folderNameSetting.addText((text) => {
