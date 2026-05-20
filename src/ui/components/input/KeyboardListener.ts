@@ -22,7 +22,8 @@ export class KeyboardListener {
   }
 
   private onEnterPress(event: KeyboardEvent): void {
-    setTimeout(() => {
+    const windowEl = this.inputEl.ownerDocument.defaultView;
+    windowEl?.setTimeout(() => {
       const isEmpty = this.inputEl.value.length === 0;
 
       if (!event.altKey || event.key !== 'Enter' || isEmpty) {

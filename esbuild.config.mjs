@@ -1,6 +1,6 @@
 import esbuild from 'esbuild';
 import process from 'process';
-import builtins from 'builtin-modules';
+import nodeBuiltins from './esbuild-node-builtins.mjs';
 import { watch } from 'fs';
 import copyFilesPlugin from './esbuild-copy-files.mjs';
 import { obsidianExportPath } from './env.mjs';
@@ -46,7 +46,7 @@ const buildOptions = {
     '@lezer/common',
     '@lezer/highlight',
     '@lezer/lr',
-    ...builtins,
+    ...nodeBuiltins,
   ],
   format: 'cjs',
   target: 'es2016',

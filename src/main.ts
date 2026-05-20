@@ -19,7 +19,6 @@ export default class BetterRecallPlugin extends Plugin {
   private eventEmitter: EventEmitter;
 
   async onload() {
-    console.debug('Loading Language Recall');
     this.eventEmitter = new EventEmitter();
 
     await this.loadPluginData();
@@ -36,9 +35,7 @@ export default class BetterRecallPlugin extends Plugin {
     this.addSettingTab(new SettingsTab(this));
   }
 
-  onunload() {
-    console.debug('Unloading Language Recall');
-  }
+  onunload() {}
 
   /**
    * Opens the recall view of the plugin which displays all possible decks.
@@ -90,15 +87,10 @@ export default class BetterRecallPlugin extends Plugin {
    * @returns Promise that resolves when the settings have been loaded and initialized.
    */
   private async loadPluginData(): Promise<void> {
-    const data = await this.loadData();
-    if (data) {
-      Object.entries(DEFAULT_SETTINGS).forEach(([key, value]) => {
-        if (data.settings[key] === undefined) {
-          data.settings[key] = value;
-        }
-      });
-    }
-    this.data = Object.assign({ settings: { ...DEFAULT_SETTINGS } }, {}, data);
+    const loaded = (await this.loadData()) as Partial<BetterRecallData> | null;
+    this.data = {
+      settings: { ...DEFAULT_SETTINGS, ...(loaded?.settings ?? {}) },
+    };
   }
 
   public getEventEmitter(): EventEmitter {

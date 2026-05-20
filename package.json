@@ -1,13 +1,13 @@
 {
   "name": "language-recall",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Add anki-like spaced repetition and recall to your vault with built-in language translation.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
-    "lint": "eslint src",
+    "lint": "eslint src package.json",
     "release": "mkdir -p dist && mv main.js dist/ && cp src/styles.css dist/ && cp manifest.json dist/ && pnpm version",
     "test": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -24,11 +24,10 @@
     "@typescript-eslint/eslint-plugin": "8.46.2",
     "@typescript-eslint/parser": "8.46.2",
     "@vitest/coverage-istanbul": "^4.0.2",
-    "builtin-modules": "5.0.0",
     "esbuild": "0.25.11",
     "eslint": "^9.38.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-obsidianmd": "^0.1.9",
+    "eslint-plugin-obsidianmd": "^0.3.0",
     "eslint-plugin-prettier": "^5.5.4",
     "happy-dom": "^20.0.8",
     "obsidian": "1.10.0",

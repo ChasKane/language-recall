@@ -301,9 +301,9 @@ export class RecallView extends FileView {
     card?: SpacedRepetitionItem | null,
     returnTo: 'auto' | 'review' | 'decks' | 'cards' = 'auto',
   ): void {
-    if (this.isLeafNavSpikeEnabled()) {
+    if (this.isLeafNavSpikeEnabled() && returnTo !== 'review') {
       const navReturnTo =
-        returnTo === 'review' || returnTo === 'decks' || returnTo === 'cards'
+        returnTo === 'decks' || returnTo === 'cards'
           ? returnTo
           : deck && card
             ? 'cards'

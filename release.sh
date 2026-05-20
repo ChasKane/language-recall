@@ -1,18 +1,25 @@
 #!/bin/bash
+set -euo pipefail
 
-### ZEROth gh repo set-default
-### FIRST update the version in
-# manifest.json (apparently this is the only required one?)
+### Push a version tag to trigger the GitHub Actions release workflow.
+### The workflow builds main.js/styles.css in CI, attests artifacts, and publishes the release.
+###
+### Before tagging, update version in:
+# manifest.json
 # versions.json
 # package.json
 
-TAG="1.0.0"
-FILES=("manifest.json" "main.js" "styles.css")
-NOTES="add language selection to the card modal."
+TAG="${1:?Usage: ./release.sh <version>}"
+NOTES="${2:-Release $TAG}"
 
-npm run build
-git add -A && git commit -m "version bump: $TAG; $NOTES"
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Working tree is not clean. Commit or stash changes before releasing."
+  exit 1
+fi
+
+pnpm build
+git add -A
+git commit -m "version bump: $TAG; $NOTES" || true
 git tag "$TAG"
+git push origin HEAD
 git push origin "$TAG"
-git push --follow-tags
-gh release create "$TAG" "${FILES[@]}" --title "$TAG" --notes "$NOTES"

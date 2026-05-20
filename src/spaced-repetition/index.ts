@@ -108,13 +108,34 @@ export abstract class SpacedRepetitionAlgorithm<T> {
 
   public resetItems(): void {
     this.items = [];
+    this.queuedItems = [];
+  }
+
+  public getQueuedItemCount(): number {
+    return this.queuedItems.length;
+  }
+
+  public shuffleQueuedItems(): void {
+    for (let i = this.queuedItems.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.queuedItems[i], this.queuedItems[j]] = [
+        this.queuedItems[j],
+        this.queuedItems[i],
+      ];
+    }
+  }
+
+  public replaceItem(item: SpacedRepetitionItem): void {
+    this.items = this.items.map((curr) => (curr.id === item.id ? item : curr));
+    this.queuedItems = this.queuedItems.map((curr) =>
+      curr.id === item.id ? item : curr,
+    );
   }
 
   /**
    * Starts a new review session.
-   * This function resets the session end time to the end of the current day,
-   * clears the queue of items to be reviewed, and refreshes the queue with
-   * items due for review today.
+   * This function resets the session end time, clears the queue of items to be
+   * reviewed, and refreshes the queue with items due now.
    */
   public startNewSession(): void {
     this.sessionEndTime = this.getEndOfDay(new Date());
@@ -123,7 +144,7 @@ export abstract class SpacedRepetitionAlgorithm<T> {
   }
 
   /**
-   * Adds an item to the queue if it is due for review today.
+   * Adds an item to the queue if it is due for review now.
    * @param item The item to potentially add to the queue.
    */
   protected addToQueueIfDueToday(item: SpacedRepetitionItem): void {
@@ -133,12 +154,12 @@ export abstract class SpacedRepetitionAlgorithm<T> {
   }
 
   /**
-   * Checks if an item is due for review today.
+   * Checks if an item is due for review now.
    * @param item The item to check.
-   * @returns True if the item is due by end of today (including overdue), false otherwise.
+   * @returns True if the item is due now or overdue, false otherwise.
    */
   public isDueToday(item: SpacedRepetitionItem): boolean {
-    return !!item.nextReviewDate && item.nextReviewDate <= this.sessionEndTime;
+    return !!item.nextReviewDate && item.nextReviewDate <= new Date();
   }
 
   /**

@@ -22,6 +22,7 @@ export interface CardEditorOptions {
 export interface CardEditorCallbacks {
   onCancel: () => void;
   onSubmit: () => void | Promise<void>;
+  onDuplicate?: () => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }
 
@@ -32,9 +33,12 @@ export class CardEditor {
   private backInputComp: InputAreaComponent;
   private buttonsBarComp: ButtonsBarComponent;
   private translateButtonComp: ButtonComponent | null = null;
+  private translateCancelButtonComp: ButtonComponent | null = null;
   private sourceLangDropdownComp: DropdownComponent | null = null;
   private targetLangDropdownComp: DropdownComponent | null = null;
   private backFieldLabelContainer: HTMLElement | null = null;
+  private translationAbortController: AbortController | null = null;
+  private translationRequestId = 0;
 
   constructor(
     private containerEl: HTMLElement,
@@ -55,7 +59,15 @@ export class CardEditor {
       const buttonsContainer = this.containerEl.createDiv(
         'better-recall__buttons-container',
       );
-      const deleteButton = new ButtonComponent(buttonsContainer)
+      const secondaryButtonsContainer = buttonsContainer.createDiv(
+        'better-recall__secondary-buttons-container',
+      );
+      if (this.callbacks.onDuplicate) {
+        new ButtonComponent(secondaryButtonsContainer)
+          .setButtonText('Duplicate')
+          .onClick(() => void this.callbacks.onDuplicate!());
+      }
+      const deleteButton = new ButtonComponent(secondaryButtonsContainer)
         .setButtonText('Delete')
         .onClick(() => void this.callbacks.onDelete!());
       deleteButton.buttonEl.addClass('better-recall-delete-button');
@@ -87,8 +99,45 @@ export class CardEditor {
   }
 
   public cleanup(): void {
+    this.cancelTranslation();
     this.frontInputComp.cleanup();
     this.backInputComp.cleanup();
+  }
+
+  private isTranslationCancelled(error: unknown): boolean {
+    return (
+      (error instanceof DOMException && error.name === 'AbortError') ||
+      (error instanceof Error && error.message === 'Translation cancelled')
+    );
+  }
+
+  private cancelTranslation(): void {
+    this.translationAbortController?.abort();
+    this.translationAbortController = null;
+    this.translationRequestId += 1;
+    this.setTranslatingUi(false);
+  }
+
+  private setTranslatingUi(translating: boolean): void {
+    if (this.translateButtonComp) {
+      this.translateButtonComp.setDisabled(translating);
+      this.translateButtonComp.setButtonText(
+        translating ? 'Translating...' : 'Translate',
+      );
+    }
+    if (this.translateCancelButtonComp) {
+      if (translating) {
+        this.translateCancelButtonComp.buttonEl.show();
+      } else {
+        this.translateCancelButtonComp.buttonEl.hide();
+      }
+    }
+    if (this.sourceLangDropdownComp) {
+      this.sourceLangDropdownComp.setDisabled(translating);
+    }
+    if (this.targetLangDropdownComp) {
+      this.targetLangDropdownComp.setDisabled(translating);
+    }
   }
 
   private get disabled(): boolean {
@@ -114,34 +163,36 @@ export class CardEditor {
       new Notice('Source and target languages cannot be the same', 3000);
       return;
     }
-    if (this.translateButtonComp) {
-      this.translateButtonComp.setDisabled(true);
-      this.translateButtonComp.setButtonText('Translating...');
-    }
-    if (this.sourceLangDropdownComp)
-      this.sourceLangDropdownComp.setDisabled(true);
-    if (this.targetLangDropdownComp)
-      this.targetLangDropdownComp.setDisabled(true);
+
+    this.translationAbortController?.abort();
+    const controller = new AbortController();
+    this.translationAbortController = controller;
+    const requestId = ++this.translationRequestId;
+    this.setTranslatingUi(true);
+
     try {
       const translatedText = await translateText(frontText, {
         sourceLanguage: sourceLang,
         targetLanguage: targetLang,
+        signal: controller.signal,
       });
+      if (requestId !== this.translationRequestId) {
+        return;
+      }
       this.backInputComp.setValue(translatedText);
       this.handleInputChange();
     } catch (error) {
+      if (this.isTranslationCancelled(error)) {
+        return;
+      }
       const msg = error instanceof Error ? error.message : 'Translation failed';
       console.error('Translation error:', msg);
       new Notice(`Translation failed: ${msg}`, 5000);
     } finally {
-      if (this.translateButtonComp) {
-        this.translateButtonComp.setDisabled(false);
-        this.translateButtonComp.setButtonText('Translate');
+      if (requestId === this.translationRequestId) {
+        this.translationAbortController = null;
+        this.setTranslatingUi(false);
       }
-      if (this.sourceLangDropdownComp)
-        this.sourceLangDropdownComp.setDisabled(false);
-      if (this.targetLangDropdownComp)
-        this.targetLangDropdownComp.setDisabled(false);
     }
   }
 
@@ -291,6 +342,16 @@ export class CardEditor {
     this.translateButtonComp.buttonEl.addClass(
       'better-recall-translate-button',
     );
+    this.translateCancelButtonComp = new ButtonComponent(
+      translateButtonContainer,
+    )
+      .setButtonText('Cancel')
+      .setTooltip('Cancel translation')
+      .onClick(() => this.cancelTranslation());
+    this.translateCancelButtonComp.buttonEl.addClass(
+      'better-recall-translate-cancel-button',
+    );
+    this.translateCancelButtonComp.buttonEl.hide();
 
     this.backInputComp.descriptionEl = backDescriptionEl;
     this.backInputComp.keyboardListener.onEnter = () => {

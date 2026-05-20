@@ -132,9 +132,10 @@ export class DecksView extends RecallSubView {
       return;
     }
 
-    const descriptionEl = document.createElement('p');
-    descriptionEl.addClass('better-recall-deck-card__description');
-    descriptionEl.setText(description);
+    const descriptionEl = deckCardEl.createEl('p', {
+      cls: 'better-recall-deck-card__description',
+      text: description,
+    });
     headerEl.insertAdjacentElement('afterend', descriptionEl);
   }
 
@@ -297,7 +298,7 @@ export class DecksView extends RecallSubView {
       'better-recall-deck-card__secondary-actions',
     );
 
-    const cardsButtonEl = container.createEl('div', {
+    const cardsButtonEl = container.createDiv({
       cls: DECK_BUTTON,
       attr: {
         role: 'button',
@@ -312,7 +313,7 @@ export class DecksView extends RecallSubView {
       this.recallView.openCardsView(deck);
     });
 
-    const editButtonEl = container.createEl('div', {
+    const editButtonEl = container.createDiv({
       cls: DECK_BUTTON,
       attr: {
         role: 'button',

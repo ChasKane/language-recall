@@ -161,13 +161,15 @@ export class SettingsTab extends PluginSettingTab {
 
               // Show success message
               button.setButtonText('Saved!');
-              setTimeout(() => {
+              const windowEl = button.buttonEl.ownerDocument.defaultView;
+              windowEl?.setTimeout(() => {
                 button.setButtonText('Save');
               }, 2000);
             } catch (error) {
               console.error('Failed to rename decks folder:', error);
               button.setButtonText('Error');
-              setTimeout(() => {
+              const windowEl = button.buttonEl.ownerDocument.defaultView;
+              windowEl?.setTimeout(() => {
                 button.setButtonText('Save');
               }, 2000);
             }

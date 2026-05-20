@@ -39,14 +39,14 @@ export function parseDeckFile(content: string): DeckJsonStructure {
   if (cardsContent) {
     const lines = cardsContent.split('\n').filter((line) => line.trim());
     for (const line of lines) {
-      // Split by pipe, but respect escaped pipes
+      // Split by pipe, but respect escaped pipes.
       const parts: string[] = [];
       let current = '';
       let escaped = false;
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
         if (escaped) {
-          current += char;
+          current += `\\${char}`;
           escaped = false;
         } else if (char === '\\') {
           escaped = true;
@@ -56,6 +56,9 @@ export function parseDeckFile(content: string): DeckJsonStructure {
         } else {
           current += char;
         }
+      }
+      if (escaped) {
+        current += '\\';
       }
       parts.push(current.trim()); // Add the last part
 
@@ -123,7 +126,7 @@ export function stringifyDeckFile(deck: DeckJsonStructure): string {
     updatedAt: deck.updatedAt,
   };
 
-  const frontmatter = stringifyYaml(metadata);
+  const frontmatter = stringifyYaml(metadata).trimEnd();
   const cards: string[] = [];
 
   for (const [id, card] of Object.entries(deck.cards)) {
@@ -142,19 +145,48 @@ export function stringifyDeckFile(deck: DeckJsonStructure): string {
     cards.push(line);
   }
 
-  return `---\n${frontmatter}---\n${cards.join('\n')}\n`;
+  return `---\n${frontmatter}\n---\n${cards.join('\n')}\n`;
 }
 
 /**
  * Escapes pipe characters in card content.
  */
 function escapePipe(text: string): string {
-  return text.replace(/\|/g, '\\|').replace(/\n/g, '\\n');
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\n/g, '\\n');
 }
 
 /**
  * Unescapes pipe characters in card content.
  */
 function unescapePipe(text: string): string {
-  return text.replace(/\\\|/g, '|').replace(/\\n/g, '\n');
+  let unescaped = '';
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (!escaped) {
+      if (char === '\\') {
+        escaped = true;
+      } else {
+        unescaped += char;
+      }
+      continue;
+    }
+
+    if (char === 'n') {
+      unescaped += '\n';
+    } else {
+      unescaped += char;
+    }
+    escaped = false;
+  }
+
+  if (escaped) {
+    unescaped += '\\';
+  }
+
+  return unescaped;
 }

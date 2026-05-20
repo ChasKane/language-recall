@@ -1,11 +1,11 @@
 {
-  "id": "language-recall",
-  "name": "Language Recall",
-  "version": "1.0.0",
-  "minAppVersion": "0.9.12",
-  "description": "Add anki-like spaced repetition and recall to your vault with built-in language translation.",
-  "author": "Chas Kane",
-  "authorUrl": "https://github.com/ChasKane",
-  "fundingUrl": "https://buymeacoffee.com/chaskane",
-  "isDesktopOnly": false
+	"id": "language-recall",
+	"name": "Language Recall",
+	"version": "1.0.1",
+	"minAppVersion": "1.2.3",
+	"description": "Add anki-like spaced repetition and recall to your vault with built-in language translation.",
+	"author": "Chas Kane",
+	"authorUrl": "https://github.com/ChasKane",
+	"fundingUrl": "https://buymeacoffee.com/chaskane",
+	"isDesktopOnly": false
 }

@@ -3,6 +3,41 @@ import { requestUrl } from 'obsidian';
 export interface TranslationOptions {
   sourceLanguage?: string;
   targetLanguage?: string;
+  signal?: AbortSignal;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new DOMException('Translation cancelled', 'AbortError');
+  }
+}
+
+interface MyMemoryResponse {
+  responseStatus?: number;
+  responseData?: {
+    translatedText?: string;
+  };
+}
+
+interface LibreTranslateResponse {
+  error?: string;
+  translatedText?: string;
+}
+
+function parseMyMemoryResponse(payload: unknown): MyMemoryResponse | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  return payload as MyMemoryResponse;
+}
+
+function parseLibreTranslateResponse(
+  payload: unknown,
+): LibreTranslateResponse | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  return payload as LibreTranslateResponse;
 }
 
 function applySingleWordCaseHint(
@@ -31,6 +66,7 @@ async function tryTranslateWithVariations(
   text: string,
   sourceLanguage: string,
   targetLanguage: string,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const variations = [
     text,
@@ -40,12 +76,17 @@ async function tryTranslateWithVariations(
   ];
 
   for (const variation of variations) {
+    throwIfAborted(signal);
     try {
       const response = await requestUrl({
         url: `https://api.mymemory.translated.net/get?q=${encodeURIComponent(variation)}&langpair=${sourceLanguage}|${targetLanguage}`,
       });
 
-      const data = response.json;
+      throwIfAborted(signal);
+      const data = parseMyMemoryResponse(response.json);
+      if (!data) {
+        continue;
+      }
 
       if (data.responseStatus === 200 && data.responseData?.translatedText) {
         const translated = data.responseData.translatedText;
@@ -83,6 +124,7 @@ async function tryTranslateWithGoogle(
   text: string,
   sourceLanguage: string,
   targetLanguage: string,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const variations = [
     text,
@@ -91,10 +133,12 @@ async function tryTranslateWithGoogle(
   ];
 
   for (const variation of variations) {
+    throwIfAborted(signal);
     try {
       const response = await requestUrl({
         url: `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(sourceLanguage)}&tl=${encodeURIComponent(targetLanguage)}&dt=t&q=${encodeURIComponent(variation)}`,
       });
+      throwIfAborted(signal);
       const translated = parseGoogleTranslatedText(response.json);
       if (!translated) {
         continue;
@@ -117,7 +161,9 @@ export async function translateText(
   text: string,
   options: TranslationOptions = {},
 ): Promise<string> {
-  const { sourceLanguage = 'en', targetLanguage = 'es' } = options;
+  const { sourceLanguage = 'en', targetLanguage = 'es', signal } = options;
+
+  throwIfAborted(signal);
 
   if (!text || text.trim().length === 0) {
     throw new Error('Text to translate cannot be empty');
@@ -127,7 +173,9 @@ export async function translateText(
     text,
     sourceLanguage,
     targetLanguage,
+    signal,
   );
+  throwIfAborted(signal);
   if (myMemoryResult) {
     return myMemoryResult;
   }
@@ -138,6 +186,7 @@ export async function translateText(
   ];
 
   for (const variation of libreTranslateVariations) {
+    throwIfAborted(signal);
     try {
       const formData = new URLSearchParams();
       formData.append('q', variation);
@@ -154,7 +203,11 @@ export async function translateText(
         body: formData.toString(),
       });
 
-      const data = response.json;
+      throwIfAborted(signal);
+      const data = parseLibreTranslateResponse(response.json);
+      if (!data) {
+        continue;
+      }
 
       if (data.error) {
         continue;
@@ -171,15 +224,19 @@ export async function translateText(
     }
   }
 
+  throwIfAborted(signal);
   const googleResult = await tryTranslateWithGoogle(
     text,
     sourceLanguage,
     targetLanguage,
+    signal,
   );
+  throwIfAborted(signal);
   if (googleResult) {
     return googleResult;
   }
 
+  throwIfAborted(signal);
   throw new Error(
     'Translation failed: all translation providers were unable to translate this text.',
   );

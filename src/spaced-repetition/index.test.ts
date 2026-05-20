@@ -103,7 +103,18 @@ describe('isDueToday', () => {
     expect(algorithm.isDueToday(overdueItem)).toBe(true);
   });
 
-  it('should return true for items due today', () => {
+  it('should return false for items due later today', () => {
+    const laterToday = new Date();
+    laterToday.setHours(laterToday.getHours() + 1);
+    const laterTodayItem = {
+      ...mockItem,
+      state: CardState.REVIEW,
+      nextReviewDate: laterToday,
+    };
+    expect(algorithm.isDueToday(laterTodayItem)).toBe(false);
+  });
+
+  it('should return true for items due at the current time', () => {
     const dueItem = {
       ...mockItem,
       state: CardState.REVIEW,

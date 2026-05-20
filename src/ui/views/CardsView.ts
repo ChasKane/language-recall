@@ -7,6 +7,7 @@ import { CARDS_LIST_EMPTY_DECK } from '../classes';
 import { SpacedRepetitionItem } from 'src/spaced-repetition';
 import { formatTimeDifference } from 'src/util';
 import { DeleteItemEvent, EditItemEvent } from 'src/data/event/events';
+import { TextComponent } from 'obsidian';
 
 const cardAttributes = {
   cardId: 'data-card-id',
@@ -16,6 +17,7 @@ export class CardsView extends RecallSubView {
   private rootEl: HTMLElement;
   private cardsListEl: HTMLElement | null = null;
   private deck: Deck;
+  private searchQuery = '';
   /** Scroll position to restore when returning from card editor. */
   private savedScrollTop: number | null = null;
   private readonly handleEditItemHandler = (event: EditItemEvent) => {
@@ -60,35 +62,12 @@ export class CardsView extends RecallSubView {
     this.deck = this.plugin.decksManager.getDecks()[this.deck.id];
     this.rootEl = this.recallView.rootEl.createDiv('better-recall-cards-view');
     this.renderBackButton(this.rootEl);
+    this.renderSearchInput();
 
     this.cardsListEl = this.rootEl.createDiv(
       'better-recall-card better-recall__cards-list',
     );
-    const cardsListEl = this.cardsListEl;
-
-    if (this.deck.cardsArray.length > 0) {
-      this.deck.cardsArray.forEach((card) => {
-        const cardContainer = cardsListEl.createEl('div', {
-          attr: { [cardAttributes.cardId]: card.id },
-        });
-        cardContainer.createEl('div', {
-          text: `${card.content.front} :: ${card.content.back}`,
-        });
-        const statusRow = cardContainer.createEl('div', {
-          cls: 'better-recall__cards-list-status',
-        });
-        statusRow.setText(this.getStatusRowText(card));
-        cardContainer.onClickEvent(() => {
-          this.recallView.openCardEditorView(this.deck, card);
-        });
-      });
-    } else {
-      this.cardsListEl.createEl('p', {
-        cls: CARDS_LIST_EMPTY_DECK,
-        text: 'No cards created for this deck',
-        attr: { [cardAttributes.cardId]: 'none' },
-      });
-    }
+    this.renderCardsList();
 
     new ButtonsBar(this.rootEl)
       .setSubmitButtonDisabled(false)
@@ -98,7 +77,7 @@ export class CardsView extends RecallSubView {
       .setCloseButtonText('Back');
 
     if (this.savedScrollTop != null) {
-      requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
         const scrollEl = this.getScrollContainer();
         if (scrollEl) {
           scrollEl.scrollTop = this.savedScrollTop!;
@@ -108,8 +87,73 @@ export class CardsView extends RecallSubView {
     }
   }
 
+  private renderCardsList(): void {
+    if (!this.cardsListEl) return;
+
+    this.cardsListEl.empty();
+    const cardsListEl = this.cardsListEl;
+    const visibleCards = this.getVisibleCards();
+
+    if (visibleCards.length > 0) {
+      visibleCards.forEach((card) => {
+        const cardContainer = cardsListEl.createDiv({
+          cls: 'better-recall__cards-list-row',
+          attr: { [cardAttributes.cardId]: card.id },
+        });
+        cardContainer.createDiv({
+          text: `${card.content.front} :: ${card.content.back}`,
+        });
+        const statusRow = cardContainer.createDiv(
+          'better-recall__cards-list-status',
+        );
+        statusRow.setText(this.getStatusRowText(card));
+        cardContainer.onClickEvent(() => {
+          this.recallView.openCardEditorView(this.deck, card);
+        });
+      });
+    } else if (this.deck.cardsArray.length === 0) {
+      this.cardsListEl.createEl('p', {
+        cls: CARDS_LIST_EMPTY_DECK,
+        text: 'No cards created for this deck',
+        attr: { [cardAttributes.cardId]: 'none' },
+      });
+    } else {
+      this.cardsListEl.createEl('p', {
+        cls: CARDS_LIST_EMPTY_DECK,
+        text: 'No cards match your search',
+        attr: { [cardAttributes.cardId]: 'none' },
+      });
+    }
+  }
+
   private getScrollContainer(): Element | null {
     return this.cardsListEl;
+  }
+
+  private renderSearchInput(): void {
+    const searchContainerEl = this.rootEl.createDiv(
+      'better-recall__cards-search',
+    );
+    const searchInput = new TextComponent(searchContainerEl)
+      .setPlaceholder('Search cards')
+      .setValue(this.searchQuery)
+      .onChange((value) => {
+        this.searchQuery = value;
+        this.renderCardsList();
+      });
+    searchInput.inputEl.addClass('better-recall-field');
+  }
+
+  private getVisibleCards(): SpacedRepetitionItem[] {
+    const query = this.searchQuery.trim().toLowerCase();
+    if (!query) {
+      return this.deck.cardsArray;
+    }
+    return this.deck.cardsArray.filter((card) => {
+      const front = card.content.front.toLowerCase();
+      const back = card.content.back.toLowerCase();
+      return front.includes(query) || back.includes(query);
+    });
   }
 
   private getStatusRowText(card: SpacedRepetitionItem): string {

@@ -52,6 +52,7 @@ export class CardEditorView extends RecallSubView {
       {
         onCancel: () => this.recallView.goBackFromCardEditor(),
         onSubmit: () => this.handleSubmit(),
+        onDuplicate: mode === 'edit' ? () => this.handleDuplicate() : undefined,
         onDelete: mode === 'edit' ? () => this.handleDelete() : undefined,
       },
     );
@@ -105,6 +106,35 @@ export class CardEditorView extends RecallSubView {
       this.cardEditor.clearInputs();
       new Notice(this.card ? 'Card saved' : 'Card added', 3000);
       if (this.card) this.recallView.goBackFromCardEditor();
+    } catch (err) {
+      new Notice(err instanceof Error ? err.message : String(err), 5000);
+      throw err;
+    }
+  }
+
+  private async handleDuplicate(): Promise<void> {
+    if (!this.cardEditor) return;
+
+    const deckId = this.cardEditor.getDeckId();
+    const card: SpacedRepetitionItem = {
+      id: uuidv4(),
+      type: CardType.BASIC,
+      content: {
+        front: this.cardEditor.getFront(),
+        back: this.cardEditor.getBack(),
+      },
+      state: CardState.NEW,
+      easeFactor: 2.5,
+      interval: 0,
+      iteration: 0,
+      stepIndex: 0,
+      nextReviewDate: new Date(),
+    };
+
+    try {
+      await this.plugin.decksManager.addCard(deckId, card);
+      this.plugin.getEventEmitter().emit('addItem', { deckId, item: card });
+      new Notice('Card duplicated', 3000);
     } catch (err) {
       new Notice(err instanceof Error ? err.message : String(err), 5000);
       throw err;

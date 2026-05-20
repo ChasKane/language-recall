@@ -9,7 +9,12 @@ import {
   REVIEW_CARD_CONTENT,
   REVIEW_CARD_DIVIDER,
 } from '../classes';
-import { ButtonComponent, Component, MarkdownRenderer } from 'obsidian';
+import {
+  ButtonComponent,
+  Component,
+  getIcon,
+  MarkdownRenderer,
+} from 'obsidian';
 import { formatTimeDifference } from 'src/util';
 
 enum ReviewState {
@@ -23,7 +28,7 @@ export class ReviewView extends RecallSubView {
   private vaultRootPath: string;
 
   private answerButtonsBarEl: HTMLElement;
-  private recallButtonsBarEl: HTMLElement;
+  private recallButtonsBarEl: HTMLElement | undefined;
 
   private cardFrontEl: HTMLElement;
   private dividerEl: HTMLElement;
@@ -31,6 +36,10 @@ export class ReviewView extends RecallSubView {
   private editButtonContainerEl: HTMLElement;
   private editButton: ButtonComponent;
   private showAnswerButton: ButtonComponent;
+  private remainingCountEl: HTMLElement;
+  private previousCardButton: ButtonComponent;
+  private nextCardButton: ButtonComponent;
+  private randomizeButton: ButtonComponent;
 
   private currentItem: SpacedRepetitionItem | null = null;
   private deck: Deck;
@@ -38,12 +47,48 @@ export class ReviewView extends RecallSubView {
   private shouldResumeFromCardEditor = false;
   private resumeWithRecallButtons = false;
   private resumeItemId: string | null = null;
+  private sessionItems: SpacedRepetitionItem[] = [];
+  private currentSessionIndex = -1;
+  private shuffleModeEnabled = true;
+  private readonly answeredItemIds = new Set<string>();
 
   /** Component for MarkdownRenderer; short-lived so it can be unloaded and avoid memory leaks. */
   private readonly markdownComponent = new Component();
-  private readonly handleKeyInputBound = this.handleKeyInput.bind(this);
-  private readonly handleInternalLinkClickBound =
-    this.handleInternalLinkClick.bind(this);
+  private readonly handleKeyInput = (event: KeyboardEvent): void => {
+    if (this.state === ReviewState.FINISHED || !this.answerButtonsBarEl) {
+      return;
+    }
+
+    const isAnswerButtonsBarVisible = !this.answerButtonsBarEl.hasClass(
+      'better-recall--display-none',
+    );
+    if (isAnswerButtonsBarVisible) {
+      if (event.key === ' ') {
+        this.showRecallButtons();
+      }
+    } else {
+      if (event.key === '1') {
+        void this.handleResponse(PerformanceResponse.AGAIN);
+      } else if (event.key === '2') {
+        void this.handleResponse(PerformanceResponse.HARD);
+      } else if (event.key === '3') {
+        void this.handleResponse(PerformanceResponse.GOOD);
+      } else if (event.key === '4') {
+        void this.handleResponse(PerformanceResponse.EASY);
+      }
+    }
+  };
+  private readonly handleInternalLinkClick = (event: MouseEvent): void => {
+    event.preventDefault();
+    const href = (event.target as HTMLAnchorElement).getAttribute('data-href');
+    if (href) {
+      void this.plugin.app.workspace.openLinkText(
+        href,
+        this.vaultRootPath,
+        true,
+      );
+    }
+  };
 
   constructor(
     protected readonly plugin: BetterRecallPlugin,
@@ -64,43 +109,26 @@ export class ReviewView extends RecallSubView {
     this.deck.cardsArray.forEach((card) => this.plugin.algorithm.addItem(card));
     // Starts new session with the items added before.
     this.plugin.algorithm.startNewSession();
+    if (this.shuffleModeEnabled) {
+      this.plugin.algorithm.shuffleQueuedItems();
+    }
+    this.sessionItems = [];
+    this.currentSessionIndex = -1;
+    this.answeredItemIds.clear();
     this.state = ReviewState.ONGOING;
-  }
-
-  private handleKeyInput(event: KeyboardEvent): void {
-    if (this.state === ReviewState.FINISHED) {
-      return;
-    }
-
-    const isAnswerButtonsBarVisible = !this.answerButtonsBarEl.hasClass(
-      'better-recall--display-none',
-    );
-    if (isAnswerButtonsBarVisible) {
-      // Key `Space` pressed.
-      if (event.key === ' ') {
-        this.showRecallButtons();
-      }
-    } else {
-      if (event.key === '1') {
-        // Handle again press.
-        void this.handleResponse(PerformanceResponse.AGAIN);
-      } else if (event.key === '2') {
-        // Handle hard press.
-        void this.handleResponse(PerformanceResponse.HARD);
-      } else if (event.key === '3') {
-        // Handle good press.
-        void this.handleResponse(PerformanceResponse.GOOD);
-      } else if (event.key === '4') {
-        // Handle easy press.
-        void this.handleResponse(PerformanceResponse.EASY);
-      }
-    }
   }
 
   public render(): void {
     this.rootEl = this.recallView.rootEl.createDiv('better-recall-recall-view');
-    document.addEventListener('keypress', this.handleKeyInputBound);
+    activeDocument.addEventListener('keypress', this.handleKeyInput);
     this.renderBackButton(this.rootEl);
+    if (!this.deck) {
+      this.rootEl.createEl('p', {
+        text: 'Review session could not be restored. Please start the review again.',
+      });
+      return;
+    }
+    this.renderSessionControls();
 
     this.contentEl = this.rootEl.createDiv(
       'better-recall-card better-recall-review-card',
@@ -126,40 +154,29 @@ export class ReviewView extends RecallSubView {
     this.cardFrontEl = this.contentEl.createEl('h3', {
       cls: REVIEW_CARD_CONTENT,
     });
-    this.dividerEl = this.contentEl.createEl('div', {
-      cls: REVIEW_CARD_DIVIDER,
-    });
+    this.dividerEl = this.contentEl.createDiv(REVIEW_CARD_DIVIDER);
     this.cardBackEl = this.contentEl.createEl('h3', {
       cls: REVIEW_CARD_CONTENT,
     });
 
     this.renderAnswerButtons();
-    if (
-      this.shouldResumeFromCardEditor &&
-      this.state === ReviewState.ONGOING &&
-      this.currentItem
-    ) {
-      this.renderCurrentItem(this.currentItem);
-      if (this.resumeWithRecallButtons) {
-        this.showRecallButtons();
+    if (this.shouldResumeFromCardEditor && this.state === ReviewState.ONGOING) {
+      if (this.tryResumeAfterCardEditor()) {
+        return;
       }
-      this.shouldResumeFromCardEditor = false;
-      this.resumeWithRecallButtons = false;
-      return;
+      this.clearCardEditorResumeState();
     }
     this.showNextItem();
   }
 
   private markForCardEditorReturn(): void {
     this.shouldResumeFromCardEditor = true;
-    this.resumeWithRecallButtons = Boolean(
-      this.recallButtonsBarEl?.isConnected,
-    );
+    this.resumeWithRecallButtons = this.isAnswerRevealed();
     this.resumeItemId = this.currentItem?.id ?? null;
   }
 
   public prepareResumeFromCardEditor(): void {
-    if (!this.resumeItemId) {
+    if (!this.resumeItemId || !this.deck) {
       return;
     }
     const latestDeck = this.plugin.decksManager.getDecks()[this.deck.id];
@@ -170,12 +187,105 @@ export class ReviewView extends RecallSubView {
     const latestItem = latestDeck.cards[this.resumeItemId];
     if (latestItem) {
       this.currentItem = latestItem;
-    } else {
-      // If the edited card was deleted/moved, continue with the next due card.
-      this.currentItem = null;
-      this.shouldResumeFromCardEditor = false;
-      this.resumeWithRecallButtons = false;
+      const sessionIndex = this.sessionItems.findIndex(
+        (item) => item.id === this.resumeItemId,
+      );
+      if (sessionIndex >= 0) {
+        this.currentSessionIndex = sessionIndex;
+        this.sessionItems[sessionIndex] = latestItem;
+      } else if (this.currentSessionIndex >= 0) {
+        this.sessionItems[this.currentSessionIndex] = latestItem;
+      }
+      this.plugin.algorithm.replaceItem(latestItem);
     }
+  }
+
+  private tryResumeAfterCardEditor(): boolean {
+    const itemId = this.resumeItemId;
+    if (!itemId || !this.deck) {
+      return false;
+    }
+
+    const latestItem = this.deck.cards[itemId];
+    if (!latestItem) {
+      return false;
+    }
+
+    this.currentItem = latestItem;
+    const sessionIndex = this.sessionItems.findIndex(
+      (item) => item.id === itemId,
+    );
+    if (sessionIndex >= 0) {
+      this.currentSessionIndex = sessionIndex;
+      this.sessionItems[sessionIndex] = latestItem;
+    }
+    this.plugin.algorithm.replaceItem(latestItem);
+    // Allow grading again after editing a card that was already answered this session.
+    this.answeredItemIds.delete(itemId);
+
+    if (this.resumeWithRecallButtons) {
+      this.renderCurrentItem(latestItem);
+      this.updateSessionControls();
+      this.showRecallButtons();
+    } else {
+      this.showCurrentItemQuestion();
+    }
+
+    this.clearCardEditorResumeState();
+    return true;
+  }
+
+  private clearCardEditorResumeState(): void {
+    this.shouldResumeFromCardEditor = false;
+    this.resumeWithRecallButtons = false;
+    this.resumeItemId = null;
+  }
+
+  private isAnswerRevealed(): boolean {
+    return (
+      Boolean(this.recallButtonsBarEl?.isConnected) &&
+      Boolean(this.answerButtonsBarEl?.hasClass('better-recall--display-none'))
+    );
+  }
+
+  private clearRecallButtonsBar(): void {
+    if (this.recallButtonsBarEl) {
+      this.recallButtonsBarEl.remove();
+      this.recallButtonsBarEl = undefined;
+    }
+  }
+
+  private renderSessionControls(): void {
+    const controlsEl = this.rootEl.createDiv(
+      'better-recall-review-session-controls',
+    );
+    this.remainingCountEl = controlsEl.createDiv(
+      'better-recall-review-card__remaining-count',
+    );
+
+    const navigationEl = controlsEl.createDiv(
+      'better-recall-review-card__navigation',
+    );
+    this.previousCardButton = new ButtonComponent(navigationEl)
+      .setButtonText('←')
+      .setTooltip('Previous card')
+      .onClick(() => this.showPreviousItem());
+    this.randomizeButton = new ButtonComponent(navigationEl)
+      .setTooltip('Shuffle mode')
+      .onClick(() => this.toggleShuffleMode());
+    const shuffleIcon = getIcon('shuffle');
+    if (shuffleIcon) {
+      this.randomizeButton.buttonEl.appendChild(shuffleIcon);
+    } else {
+      this.randomizeButton.setButtonText('Shuffle');
+    }
+    this.randomizeButton.buttonEl.addClass(
+      'better-recall-review-card__shuffle-button',
+    );
+    this.nextCardButton = new ButtonComponent(navigationEl)
+      .setButtonText('→')
+      .setTooltip('Next viewed card')
+      .onClick(() => this.showNextItem());
   }
 
   private renderAnswerButtons(): void {
@@ -190,10 +300,13 @@ export class ReviewView extends RecallSubView {
     const showAnswerTextEl = this.showAnswerButton.buttonEl.createSpan();
     showAnswerEmojiEl.setText('👀');
     showAnswerTextEl.setText('Show answer');
-    this.showAnswerButton.onClick(this.showRecallButtons.bind(this));
+    this.showAnswerButton.onClick(() => this.showRecallButtons());
   }
 
   private renderRecallButtons(): void {
+    if (!this.currentItem) {
+      return;
+    }
     this.recallButtonsBarEl = this.rootEl.createDiv(
       `${BUTTONS_BAR_CLASS} better-recall-review-card__answer-buttons-bar`,
     );
@@ -207,12 +320,22 @@ export class ReviewView extends RecallSubView {
     this.renderButton(PerformanceResponse.EASY, '👑', 'Easy');
   }
 
+  private renderReviewedCardButtons(): void {
+    this.clearRecallButtonsBar();
+    this.recallButtonsBarEl = this.rootEl.createDiv(
+      `${BUTTONS_BAR_CLASS} better-recall-review-card__answer-buttons-bar`,
+    );
+    new ButtonComponent(this.recallButtonsBarEl)
+      .setButtonText('Reviewed')
+      .setDisabled(true);
+  }
+
   private renderButton(
     performanceResponse: PerformanceResponse,
     emoji: string,
     text: string,
   ): void {
-    if (!this.currentItem) {
+    if (!this.currentItem || !this.recallButtonsBarEl) {
       return;
     }
 
@@ -235,32 +358,120 @@ export class ReviewView extends RecallSubView {
   }
 
   private showRecallButtons(): void {
+    this.clearRecallButtonsBar();
+    this.cardFrontEl.addClass('better-recall--display-none');
+    this.cardFrontEl.hide();
     this.cardBackEl.removeClass('better-recall--display-none');
-    this.dividerEl.removeClass('better-recall--display-none');
+    this.cardBackEl.show();
+    this.dividerEl.addClass('better-recall--display-none');
+    this.dividerEl.hide();
     this.editButtonContainerEl.removeClass('better-recall--display-none');
     this.answerButtonsBarEl.addClass('better-recall--display-none');
+    if (this.isCurrentItemAnswered()) {
+      this.renderReviewedCardButtons();
+      return;
+    }
     this.renderRecallButtons();
   }
 
   private showNextItem(): void {
-    if (this.recallButtonsBarEl) {
-      this.recallButtonsBarEl.remove();
-    }
+    this.clearRecallButtonsBar();
 
     this.answerButtonsBarEl.removeClass('better-recall--display-none');
+    this.showAnswerButton.buttonEl.show();
+    this.cardFrontEl.removeClass('better-recall--display-none');
+    this.cardFrontEl.show();
 
-    this.currentItem = this.plugin.algorithm.getNextReviewItem();
+    if (this.currentSessionIndex < this.sessionItems.length - 1) {
+      this.currentSessionIndex += 1;
+      this.currentItem = this.sessionItems[this.currentSessionIndex];
+    } else {
+      this.currentItem = this.plugin.algorithm.getNextReviewItem();
+      if (this.currentItem) {
+        this.sessionItems.push(this.currentItem);
+        this.currentSessionIndex = this.sessionItems.length - 1;
+      }
+    }
 
     this.editButtonContainerEl.addClass('better-recall--display-none');
     this.dividerEl.addClass('better-recall--display-none');
+    this.dividerEl.hide();
     this.cardBackEl.addClass('better-recall--display-none');
+    this.cardBackEl.hide();
     if (this.currentItem) {
       this.renderCurrentItem(this.currentItem);
+      this.updateSessionControls();
     } else {
       this.cardFrontEl.setText('Review session complete 🚀!');
       this.showAnswerButton.buttonEl.hide();
       this.state = ReviewState.FINISHED;
+      this.updateSessionControls();
     }
+  }
+
+  private showPreviousItem(): void {
+    if (this.currentSessionIndex <= 0) {
+      return;
+    }
+    this.currentSessionIndex -= 1;
+    this.currentItem = this.sessionItems[this.currentSessionIndex];
+    this.showCurrentItemQuestion();
+  }
+
+  private showCurrentItemQuestion(): void {
+    this.clearRecallButtonsBar();
+    this.answerButtonsBarEl.removeClass('better-recall--display-none');
+    this.showAnswerButton.buttonEl.show();
+    this.editButtonContainerEl.addClass('better-recall--display-none');
+    this.cardFrontEl.removeClass('better-recall--display-none');
+    this.cardFrontEl.show();
+    this.dividerEl.addClass('better-recall--display-none');
+    this.dividerEl.hide();
+    this.cardBackEl.addClass('better-recall--display-none');
+    this.cardBackEl.hide();
+    if (this.currentItem) {
+      this.renderCurrentItem(this.currentItem);
+    }
+    this.updateSessionControls();
+  }
+
+  private toggleShuffleMode(): void {
+    this.shuffleModeEnabled = !this.shuffleModeEnabled;
+    if (this.shuffleModeEnabled) {
+      this.plugin.algorithm.shuffleQueuedItems();
+    }
+    this.updateSessionControls();
+  }
+
+  private updateSessionControls(): void {
+    const remainingCount = this.getRemainingReviewCount();
+    const shuffleLabel = this.shuffleModeEnabled ? ' (shuffled)' : '';
+    this.remainingCountEl.setText(`${remainingCount} remaining${shuffleLabel}`);
+    this.previousCardButton.setDisabled(this.currentSessionIndex <= 0);
+    this.nextCardButton.setDisabled(
+      this.currentSessionIndex >= this.sessionItems.length - 1,
+    );
+    this.randomizeButton.buttonEl.toggleClass(
+      'is-active',
+      this.shuffleModeEnabled,
+    );
+    this.randomizeButton.buttonEl.setAttr(
+      'aria-pressed',
+      String(this.shuffleModeEnabled),
+    );
+  }
+
+  private getRemainingReviewCount(): number {
+    const unreviewedViewedItems = this.sessionItems.filter(
+      (item) => !this.answeredItemIds.has(item.id),
+    ).length;
+    return unreviewedViewedItems + this.plugin.algorithm.getQueuedItemCount();
+  }
+
+  private isCurrentItemAnswered(): boolean {
+    return Boolean(
+      this.currentItem && this.answeredItemIds.has(this.currentItem.id),
+    );
   }
 
   private renderCurrentItem(item: SpacedRepetitionItem): void {
@@ -286,30 +497,22 @@ export class ReviewView extends RecallSubView {
 
     // TODO: Check why event listeners are deactivated for internal links.
     this.cardFrontEl.querySelectorAll('a.internal-link').forEach((link) => {
-      link.addEventListener('click', this.handleInternalLinkClickBound);
+      link.addEventListener('click', this.handleInternalLinkClick);
     });
     this.cardBackEl.querySelectorAll('a.internal-link').forEach((link) => {
-      link.addEventListener('click', this.handleInternalLinkClickBound);
+      link.addEventListener('click', this.handleInternalLinkClick);
     });
-  }
-
-  private handleInternalLinkClick(event: MouseEvent): void {
-    event.preventDefault();
-    const href = (event.target as HTMLAnchorElement).getAttribute('data-href');
-    if (href) {
-      void this.plugin.app.workspace.openLinkText(
-        href,
-        this.vaultRootPath,
-        true,
-      );
-    }
   }
 
   private async handleResponse(response: PerformanceResponse): Promise<void> {
-    if (this.currentItem) {
+    if (this.currentItem && !this.isCurrentItemAnswered()) {
       this.plugin.algorithm.updateItemAfterReview(this.currentItem, response);
       // Update the card in the deck
       this.deck.cards[this.currentItem.id] = this.currentItem;
+      this.answeredItemIds.add(this.currentItem.id);
+      if (this.shuffleModeEnabled) {
+        this.plugin.algorithm.shuffleQueuedItems();
+      }
       // Save the deck to file
       await this.plugin.decksManager.saveDeckToFile(this.deck.id);
       this.showNextItem();
@@ -318,12 +521,12 @@ export class ReviewView extends RecallSubView {
 
   public onClose(): void {
     super.onClose();
-    document.removeEventListener('keypress', this.handleKeyInputBound);
-    this.cardFrontEl.querySelectorAll('a.internal-link').forEach((link) => {
-      link.removeEventListener('click', this.handleInternalLinkClickBound);
+    activeDocument.removeEventListener('keypress', this.handleKeyInput);
+    this.cardFrontEl?.querySelectorAll('a.internal-link').forEach((link) => {
+      link.removeEventListener('click', this.handleInternalLinkClick);
     });
-    this.cardBackEl.querySelectorAll('a.internal-link').forEach((link) => {
-      link.removeEventListener('click', this.handleInternalLinkClickBound);
+    this.cardBackEl?.querySelectorAll('a.internal-link').forEach((link) => {
+      link.removeEventListener('click', this.handleInternalLinkClick);
     });
     // Cards are saved immediately after each review, so no need to save here
   }
