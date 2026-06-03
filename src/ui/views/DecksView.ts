@@ -222,6 +222,13 @@ export class DecksView extends RecallSubView {
   }
 
   private renderDecks(): void {
+    if (!this.plugin.decksManager.isLoaded()) {
+      this.contentEl
+        .createDiv('better-recall-decks-loading')
+        .setText('Loading decks…');
+      return;
+    }
+
     const decksListEl = this.contentEl.createDiv('better-recall-decks-list');
 
     this.plugin.decksManager.decksArray.forEach((deck) => {
@@ -263,21 +270,41 @@ export class DecksView extends RecallSubView {
         'better-recall-deck-card__stats',
       );
 
-      const dueCountEl = deckStatsEl.createDiv('better-recall-deck-card__stat');
+      const dueCountEl = deckStatsEl.createDiv({
+        cls: 'better-recall-deck-card__stat better-recall-deck-card__stat--clickable',
+        attr: {
+          role: 'button',
+          tabindex: '0',
+          title: 'Start review',
+        },
+      });
       dueCountEl.createEl('span', { text: 'Due' });
       dueCountEl.createEl('strong', {
         text: `${dueCardsLength}`,
         attr: { [rowAttributes.dueCardsCount.plain]: dueCardsLength },
         cls: dueCardsLength > 0 ? DUE_CARDS_COLOR : '',
       });
+      dueCountEl.onClickEvent((ev) => {
+        ev.stopPropagation();
+        this.recallView.startReviewingDeck(deck);
+      });
 
-      const totalCountEl = deckStatsEl.createDiv(
-        'better-recall-deck-card__stat',
-      );
+      const totalCountEl = deckStatsEl.createDiv({
+        cls: 'better-recall-deck-card__stat better-recall-deck-card__stat--clickable',
+        attr: {
+          role: 'button',
+          tabindex: '0',
+          title: 'View cards',
+        },
+      });
       totalCountEl.createEl('span', { text: 'Total' });
       totalCountEl.createEl('strong', {
         text: `${totalCardsLength}`,
         attr: { [rowAttributes.totalCardsCount.plain]: totalCardsLength },
+      });
+      totalCountEl.onClickEvent((ev) => {
+        ev.stopPropagation();
+        this.recallView.openCardsView(deck);
       });
 
       const footerEl = deckCardEl.createDiv('better-recall-deck-card__footer');
@@ -337,7 +364,7 @@ export class DecksView extends RecallSubView {
     reviewButton.buttonEl.setAttr('title', 'Start review');
     reviewButton.onClick((ev) => {
       ev.stopPropagation();
-      void this.recallView.startReviewingDeck(deck);
+      this.recallView.startReviewingDeck(deck);
     });
   }
 

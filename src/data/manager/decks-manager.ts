@@ -22,6 +22,8 @@ export class DecksManager {
   private decks: Record<string, Deck>;
   private algorithm: SpacedRepetitionAlgorithm<unknown>;
   private deckFilePaths: Record<string, string> = {}; // deckId -> file path
+  private loadPromise: Promise<void> | null = null;
+  private loaded = false;
 
   constructor(
     private plugin: BetterRecallPlugin,
@@ -35,7 +37,26 @@ export class DecksManager {
     return this.plugin.getSettings().decksFolderName || 'Language Recall';
   }
 
-  public async load(): Promise<void> {
+  public isLoaded(): boolean {
+    return this.loaded;
+  }
+
+  public whenLoaded(): Promise<void> {
+    return this.loadPromise ?? Promise.resolve();
+  }
+
+  public load(): Promise<void> {
+    if (this.loadPromise) {
+      return this.loadPromise;
+    }
+
+    this.loadPromise = this.loadFromDisk().finally(() => {
+      this.loaded = true;
+    });
+    return this.loadPromise;
+  }
+
+  private async loadFromDisk(): Promise<void> {
     // Load all deck files from the decks folder
     const decksFolder = this.getDecksFolder();
 
@@ -314,6 +335,58 @@ export class DecksManager {
 
   public getDecks(): Record<string, Deck> {
     return this.decks;
+  }
+
+  /**
+   * Rescales every card's interval and due date when the review interval
+   * multiplier changes, keeping already-due cards due.
+   */
+  public async rescaleAllCardsForMultiplierChange(
+    oldMultiplier: number,
+    newMultiplier: number,
+  ): Promise<void> {
+    if (
+      oldMultiplier <= 0 ||
+      newMultiplier <= 0 ||
+      oldMultiplier === newMultiplier
+    ) {
+      return;
+    }
+
+    const ratio = newMultiplier / oldMultiplier;
+    const now = new Date();
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+    for (const deck of this.decksArray) {
+      let deckChanged = false;
+
+      for (const card of deck.cardsArray) {
+        if (card.interval > 0) {
+          card.interval = card.interval * ratio;
+          deckChanged = true;
+        }
+
+        if (!card.nextReviewDate || card.nextReviewDate <= now) {
+          continue;
+        }
+
+        if (card.lastReviewDate) {
+          card.nextReviewDate = new Date(
+            card.lastReviewDate.getTime() + card.interval * MS_PER_DAY,
+          );
+        } else {
+          const remainingMs = card.nextReviewDate.getTime() - now.getTime();
+          card.nextReviewDate = new Date(now.getTime() + remainingMs * ratio);
+        }
+
+        deckChanged = true;
+        this.algorithm.replaceItem(card);
+      }
+
+      if (deckChanged) {
+        await this.saveDeckToFile(deck.id);
+      }
+    }
   }
 
   private toJsonStructure(): DeckJsonStructure[] {

@@ -104,9 +104,75 @@ export class SettingsTab extends PluginSettingTab {
       const multiplier = snapMultiplier(parseFloat(slider.value));
       slider.value = multiplier.toFixed(2);
       updateIntervals();
-      this.plugin.setIntervalMultiplier(multiplier);
-      void this.plugin.savePluginData();
+      void (async () => {
+        await this.plugin.setIntervalMultiplier(multiplier);
+        await this.plugin.savePluginData();
+      })();
     });
+
+    // Add a separator
+    this.containerEl.createEl('hr');
+
+    new Setting(this.containerEl)
+      .setName('Gemini API key')
+      .setDesc(
+        'Used for follow-up chat during card review. Create a key at aistudio.google.com/apikey. For desktop apps like Obsidian, set application restrictions to None.',
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder('AIza…')
+          .setValue(this.plugin.getSettings().geminiApiKey)
+          .onChange((value) => {
+            this.plugin.setGeminiApiKey(value.trim());
+            void this.plugin.savePluginData();
+          });
+        text.inputEl.type = 'password';
+      });
+
+    new Setting(this.containerEl)
+      .setName('Gemini model')
+      .setDesc('Model used for follow-up chat. Default: gemini-2.5-flash.')
+      .addText((text) => {
+        text
+          .setPlaceholder('gemini-2.5-flash')
+          .setValue(this.plugin.getSettings().geminiModel)
+          .onChange((value) => {
+            this.plugin.setGeminiModel(value.trim() || 'gemini-2.5-flash');
+            void this.plugin.savePluginData();
+          });
+      });
+
+    new Setting(this.containerEl)
+      .setName('Groq API key (optional fallback)')
+      .setDesc(
+        'Used automatically if Gemini fails. Free at console.groq.com. You can also add this when prompted during chat.',
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder('gsk_…')
+          .setValue(this.plugin.getSettings().groqApiKey)
+          .onChange((value) => {
+            this.plugin.setGroqApiKey(value.trim());
+            void this.plugin.savePluginData();
+          });
+        text.inputEl.type = 'password';
+      });
+
+    new Setting(this.containerEl)
+      .setName('OpenRouter API key (optional fallback)')
+      .setDesc(
+        'Last-resort fallback if Gemini and Groq fail. Free at openrouter.ai/keys.',
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder('sk-or-…')
+          .setValue(this.plugin.getSettings().openRouterApiKey)
+          .onChange((value) => {
+            this.plugin.setOpenRouterApiKey(value.trim());
+            void this.plugin.savePluginData();
+          });
+        text.inputEl.type = 'password';
+      });
 
     // Add a separator
     this.containerEl.createEl('hr');

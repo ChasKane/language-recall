@@ -10,6 +10,11 @@ import { DecksManager } from './data/manager/decks-manager';
 import { EventEmitter } from './data/event';
 import { AnkiAlgorithm } from './spaced-repetition/anki';
 import { SettingsTab } from './ui/settings/SettingsTab';
+import {
+  activateRecallLeaf,
+  pruneDuplicateRecallLeaves,
+} from './util/recall-leaves';
+import { stripPersistedRecallLeavesInWorkspaceFile } from './util/workspace-recall-leaves';
 
 export default class BetterRecallPlugin extends Plugin {
   public readonly algorithm = new AnkiAlgorithm();
@@ -19,11 +24,15 @@ export default class BetterRecallPlugin extends Plugin {
   private eventEmitter: EventEmitter;
 
   async onload() {
+    stripPersistedRecallLeavesInWorkspaceFile(
+      this.app.vault.configDir,
+      FILE_VIEW_TYPE,
+    );
+
     this.eventEmitter = new EventEmitter();
 
     await this.loadPluginData();
     this.algorithm.setParameters(this.getSettings().intervalMultiplier);
-    await this.decksManager.load();
 
     this.registerView(FILE_VIEW_TYPE, (leaf) => new RecallView(this, leaf));
     registerCommands(this);
@@ -33,46 +42,36 @@ export default class BetterRecallPlugin extends Plugin {
     });
 
     this.addSettingTab(new SettingsTab(this));
+
+    void this.whenWorkspaceReady()
+      .then(() => {
+        pruneDuplicateRecallLeaves(this.app.workspace);
+      })
+      .then(() => this.decksManager.load())
+      .then(() => {
+        this.getEventEmitter().emit('decksLoaded', {});
+      });
   }
 
-  onunload() {}
+  onunload() {
+    stripPersistedRecallLeavesInWorkspaceFile(
+      this.app.vault.configDir,
+      FILE_VIEW_TYPE,
+    );
+  }
 
   /**
    * Opens the recall view of the plugin which displays all possible decks.
    */
   public openRecallView(): void {
-    const leaf = this.app.workspace.getLeaf(false);
-    void leaf.setViewState({
-      type: FILE_VIEW_TYPE,
-      state: {},
-    });
-    this.app.workspace.setActiveLeaf(leaf);
-  }
-
-  /**
-   * Opens recall in a newly created leaf with explicit navigation state.
-   */
-  public async openRecallViewInNewLeaf(
-    state: Record<string, unknown>,
-  ): Promise<void> {
-    const leaf = this.app.workspace.getLeaf(true);
-    await leaf.setViewState({
-      type: FILE_VIEW_TYPE,
-      state,
-    });
-    this.app.workspace.setActiveLeaf(leaf, { focus: true });
+    activateRecallLeaf(this.app.workspace);
   }
 
   /**
    * Opens the recall view and navigates to the add-card editor (for the "Add card" command).
    */
-  public async openRecallViewAndAddCard(): Promise<void> {
-    const leaf = this.app.workspace.getLeaf(false);
-    await leaf.setViewState({
-      type: FILE_VIEW_TYPE,
-      state: {},
-    });
-    this.app.workspace.setActiveLeaf(leaf);
+  public openRecallViewAndAddCard(): void {
+    const leaf = activateRecallLeaf(this.app.workspace);
     const view = leaf.view;
     if (view?.getViewType?.() === FILE_VIEW_TYPE) {
       (view as RecallView).openCardEditorView();
@@ -93,6 +92,16 @@ export default class BetterRecallPlugin extends Plugin {
     };
   }
 
+  /**
+   * Waits until Obsidian's workspace layout (and vault file indexing) is ready
+   * before reading deck files from disk.
+   */
+  private whenWorkspaceReady(): Promise<void> {
+    return new Promise((resolve) => {
+      this.app.workspace.onLayoutReady(() => resolve());
+    });
+  }
+
   public getEventEmitter(): EventEmitter {
     return this.eventEmitter;
   }
@@ -101,7 +110,14 @@ export default class BetterRecallPlugin extends Plugin {
     return this.data.settings;
   }
 
-  public setIntervalMultiplier(multiplier: number): void {
+  public async setIntervalMultiplier(multiplier: number): Promise<void> {
+    const oldMultiplier = this.getSettings().intervalMultiplier;
+    if (oldMultiplier !== multiplier) {
+      await this.decksManager.rescaleAllCardsForMultiplierChange(
+        oldMultiplier,
+        multiplier,
+      );
+    }
     this.getSettings().intervalMultiplier = multiplier;
     this.algorithm.setParameters(multiplier);
   }
@@ -120,6 +136,22 @@ export default class BetterRecallPlugin extends Plugin {
 
   public setLastSelectedDeckId(deckId: string): void {
     this.getSettings().lastSelectedDeckId = deckId;
+  }
+
+  public setGeminiApiKey(apiKey: string): void {
+    this.getSettings().geminiApiKey = apiKey;
+  }
+
+  public setGeminiModel(model: string): void {
+    this.getSettings().geminiModel = model;
+  }
+
+  public setGroqApiKey(apiKey: string): void {
+    this.getSettings().groqApiKey = apiKey;
+  }
+
+  public setOpenRouterApiKey(apiKey: string): void {
+    this.getSettings().openRouterApiKey = apiKey;
   }
 
   public getData(): BetterRecallData {

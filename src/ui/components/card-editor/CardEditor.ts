@@ -1,4 +1,4 @@
-import { ButtonComponent, DropdownComponent, Notice } from 'obsidian';
+import { ButtonComponent, DropdownComponent, Notice, getIcon } from 'obsidian';
 import BetterRecallPlugin from 'src/main';
 import {
   CARD_MODAL_DESCRIPTION,
@@ -6,22 +6,33 @@ import {
 } from 'src/ui/classes';
 import { ButtonsBarComponent } from 'src/ui/components/ButtonsBarComponent';
 import { InputAreaComponent } from 'src/ui/components/input/InputAreaComponent';
-import { cn } from 'src/util';
+import { cn, formatTimeDifference } from 'src/util';
 import { translateText } from 'src/util/translation';
 import { DEFAULT_SETTINGS } from 'src/settings/data';
 import type { SpacedRepetitionItem } from 'src/spaced-repetition';
 import type { Deck } from 'src/data/deck';
 import { LANGUAGES } from './LANGUAGES';
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const REVIEW_DELAY_STEP_DAYS = 1 / 24;
+
+const snapReviewDelayDays = (days: number): number =>
+  Math.round(days / REVIEW_DELAY_STEP_DAYS) * REVIEW_DELAY_STEP_DAYS;
+
 export interface CardEditorOptions {
   mode: 'add' | 'edit';
   deck?: Deck;
   card?: SpacedRepetitionItem;
+  initialFront?: string;
+  initialBack?: string;
+  initialDeckId?: string;
 }
 
 export interface CardEditorCallbacks {
   onCancel: () => void;
   onSubmit: () => void | Promise<void>;
+  onOpenAi?: () => void;
+  hasAiConversation?: boolean;
   onDuplicate?: () => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }
@@ -39,6 +50,13 @@ export class CardEditor {
   private backFieldLabelContainer: HTMLElement | null = null;
   private translationAbortController: AbortController | null = null;
   private translationRequestId = 0;
+  private reviewDelayDays = 0;
+  private initialReviewDelayDays = 0;
+  private initialFront = '';
+  private initialBack = '';
+  private initialDeckId = '';
+  private reviewDelaySlider: HTMLInputElement | null = null;
+  private reviewDelayLabel: HTMLElement | null = null;
 
   constructor(
     private containerEl: HTMLElement,
@@ -51,9 +69,10 @@ export class CardEditor {
     );
     this.renderDeckDropdown();
     this.renderCardTypeDropdown();
+    this.renderAiRow();
     this.renderBasicTypeFields(
-      this.options.card?.content.front,
-      this.options.card?.content.back,
+      this.options.initialFront ?? this.options.card?.content.front,
+      this.options.initialBack ?? this.options.card?.content.back,
     );
     if (this.options.mode === 'edit' && this.callbacks.onDelete) {
       const buttonsContainer = this.containerEl.createDiv(
@@ -78,6 +97,18 @@ export class CardEditor {
     } else {
       this.renderButtonsBar('Add');
     }
+
+    if (this.options.mode === 'edit') {
+      this.initialFront =
+        this.options.initialFront ?? this.options.card?.content.front ?? '';
+      this.initialBack =
+        this.options.initialBack ?? this.options.card?.content.back ?? '';
+      this.initialDeckId =
+        this.options.initialDeckId ??
+        this.options.deck?.id ??
+        this.deckDropdownComp.getValue();
+    }
+    this.updateSubmitButtonState();
   }
 
   public getDeckId(): string {
@@ -90,6 +121,24 @@ export class CardEditor {
 
   public getBack(): string {
     return this.backInputComp.getValue();
+  }
+
+  public getNextReviewDate(): Date | undefined {
+    if (this.options.mode !== 'edit' || !this.options.card) {
+      return undefined;
+    }
+
+    return new Date(Date.now() + this.reviewDelayDays * MS_PER_DAY);
+  }
+
+  public setFront(value: string): void {
+    this.frontInputComp.setValue(value);
+    this.handleInputChange();
+  }
+
+  public setBack(value: string): void {
+    this.backInputComp.setValue(value);
+    this.handleInputChange();
   }
 
   public clearInputs(): void {
@@ -141,17 +190,49 @@ export class CardEditor {
   }
 
   private get disabled(): boolean {
-    return (
+    if (
       this.frontInputComp.getValue().length === 0 ||
       this.backInputComp.getValue().length === 0
+    ) {
+      return true;
+    }
+
+    if (this.options.mode === 'edit') {
+      return !this.hasUnsavedChanges();
+    }
+
+    return false;
+  }
+
+  private hasUnsavedChanges(): boolean {
+    if (this.options.mode !== 'edit') {
+      return true;
+    }
+
+    return (
+      this.frontInputComp.getValue() !== this.initialFront ||
+      this.backInputComp.getValue() !== this.initialBack ||
+      this.deckDropdownComp.getValue() !== this.initialDeckId ||
+      snapReviewDelayDays(this.reviewDelayDays) !==
+        snapReviewDelayDays(this.initialReviewDelayDays)
     );
   }
 
-  private handleInputChange(): void {
-    const disabled =
+  private updateSubmitButtonState(): void {
+    const empty =
       this.frontInputComp.getValue().length === 0 ||
       this.backInputComp.getValue().length === 0;
+
+    const disabled =
+      this.options.mode === 'edit'
+        ? empty || !this.hasUnsavedChanges()
+        : empty;
+
     this.buttonsBarComp.setSubmitButtonDisabled(disabled);
+  }
+
+  private handleInputChange(): void {
+    this.updateSubmitButtonState();
   }
 
   private async handleTranslate(): Promise<void> {
@@ -214,9 +295,10 @@ export class CardEditor {
 
     const lastSelectedDeckId = this.plugin.getSettings().lastSelectedDeckId;
     const initialDeckId =
-      this.options.mode === 'edit' && this.options.deck
+      this.options.initialDeckId ??
+      (this.options.mode === 'edit' && this.options.deck
         ? this.options.deck.id
-        : lastSelectedDeckId;
+        : lastSelectedDeckId);
     if (initialDeckId && decks[initialDeckId]) {
       this.deckDropdownComp.setValue(initialDeckId);
     }
@@ -225,6 +307,7 @@ export class CardEditor {
     this.deckDropdownComp.onChange((value) => {
       this.plugin.setLastSelectedDeckId(value);
       void this.plugin.savePluginData();
+      this.updateSubmitButtonState();
     });
   }
 
@@ -237,6 +320,114 @@ export class CardEditor {
       .addOptions({ basic: 'Basic' })
       .setDisabled(true);
     cardTypeDropdown.selectEl.addClass('better-recall-field');
+  }
+
+  private renderAiRow(): void {
+    const showReviewSlider =
+      this.options.mode === 'edit' && !!this.options.card;
+    const showAiButton = !!this.callbacks.onOpenAi;
+
+    if (!showReviewSlider && !showAiButton) {
+      return;
+    }
+
+    const aiRow = this.containerEl.createDiv(
+      'better-recall-card-editor__ai-row',
+    );
+
+    if (showReviewSlider) {
+      this.renderReviewDelaySlider(aiRow);
+    }
+
+    if (!showAiButton) {
+      return;
+    }
+
+    const aiButton = new ButtonComponent(aiRow);
+    aiButton.setTooltip(
+      this.callbacks.hasAiConversation
+        ? 'AI assistant (saved conversation)'
+        : 'Open AI assistant',
+    );
+    aiButton.onClick(() => this.callbacks.onOpenAi!());
+    aiButton.buttonEl.addClass('better-recall-card-editor__ai-button');
+    if (this.callbacks.hasAiConversation) {
+      aiButton.buttonEl.addClass('is-active');
+    }
+
+    const aiIcon = getIcon('brain');
+    if (aiIcon) {
+      aiButton.buttonEl.empty();
+      aiButton.buttonEl.appendChild(aiIcon);
+    } else {
+      aiButton.setButtonText('🧠 AI');
+    }
+  }
+
+  private renderReviewDelaySlider(row: HTMLElement): void {
+    const card = this.options.card!;
+    const now = Date.now();
+    const nextReviewMs = card.nextReviewDate?.getTime() ?? now;
+    this.reviewDelayDays = Math.max(0, (nextReviewMs - now) / MS_PER_DAY);
+    this.initialReviewDelayDays = this.reviewDelayDays;
+
+    const multiplier = this.plugin.getSettings().intervalMultiplier;
+    const maxDays = Math.max(
+      21 * multiplier,
+      card.interval,
+      this.reviewDelayDays,
+      REVIEW_DELAY_STEP_DAYS,
+    );
+
+    const sliderContainer = row.createDiv(
+      'better-recall-card-editor__review-delay',
+    );
+    const labelRow = sliderContainer.createDiv(
+      'better-recall-card-editor__review-delay-header',
+    );
+    labelRow.createSpan({
+      text: 'Next review',
+      cls: 'better-recall-card-editor__review-delay-title',
+    });
+    this.reviewDelayLabel = labelRow.createSpan({
+      cls: 'better-recall-card-editor__review-delay-value',
+    });
+
+    const sliderRow = sliderContainer.createDiv(
+      'better-recall-card-editor__review-delay-slider-row',
+    );
+    this.reviewDelaySlider = sliderRow.createEl('input', {
+      attr: {
+        type: 'range',
+        min: '0',
+        max: maxDays.toString(),
+        step: REVIEW_DELAY_STEP_DAYS.toString(),
+        value: this.reviewDelayDays.toString(),
+      },
+      cls: 'better-recall-card-editor__review-delay-slider',
+    });
+
+    this.updateReviewDelayLabel();
+
+    this.reviewDelaySlider.addEventListener('input', () => {
+      this.reviewDelayDays = parseFloat(this.reviewDelaySlider!.value);
+      this.updateReviewDelayLabel();
+      this.updateSubmitButtonState();
+    });
+  }
+
+  private updateReviewDelayLabel(): void {
+    if (!this.reviewDelayLabel) {
+      return;
+    }
+
+    if (this.reviewDelayDays <= 0) {
+      this.reviewDelayLabel.setText('Due now');
+      return;
+    }
+
+    const nextDate = new Date(Date.now() + this.reviewDelayDays * MS_PER_DAY);
+    this.reviewDelayLabel.setText(formatTimeDifference(nextDate));
   }
 
   private renderBasicTypeFields(front?: string, back?: string): void {

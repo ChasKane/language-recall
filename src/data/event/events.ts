@@ -25,6 +25,8 @@ export type DeleteDeckEvent = Event<{
   deck: Deck;
 }>;
 
+export type DecksLoadedEvent = Event<Record<string, never>>;
+
 export type EventMap = {
   addDeck: AddDeckEvent;
   editDeck: EditDeckEvent;
@@ -32,6 +34,7 @@ export type EventMap = {
   editItem: EditItemEvent;
   deleteItem: DeleteItemEvent;
   deleteDeck: DeleteDeckEvent;
+  decksLoaded: DecksLoadedEvent;
 };
 
 export type EventType = keyof EventMap;

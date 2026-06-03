@@ -8,6 +8,10 @@ export interface BetterRecallSettings {
   targetLanguage: string;
   lastSelectedDeckId: string;
   intervalMultiplier: number; // Multiplier for review intervals (0.25 to 4.0, default 1.0)
+  geminiApiKey: string;
+  geminiModel: string;
+  groqApiKey: string;
+  openRouterApiKey: string;
 }
 
 export const DEFAULT_SETTINGS: BetterRecallSettings = {
@@ -16,4 +20,8 @@ export const DEFAULT_SETTINGS: BetterRecallSettings = {
   targetLanguage: 'es',
   lastSelectedDeckId: '',
   intervalMultiplier: 1.0,
+  geminiApiKey: '',
+  geminiModel: 'gemini-2.5-flash',
+  groqApiKey: '',
+  openRouterApiKey: '',
 };

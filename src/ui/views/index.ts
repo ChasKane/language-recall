@@ -1,15 +1,22 @@
-import { FileView, Platform, ViewStateResult, WorkspaceLeaf } from 'obsidian';
+import {
+  FileView,
+  Notice,
+  ViewStateResult,
+  WorkspaceLeaf,
+} from 'obsidian';
 import BetterRecallPlugin from '../../main';
 import { EmptyView } from './EmptyView';
 import { ReviewView } from './ReviewView';
 import { DecksView } from './DecksView';
 import { CardsView } from './CardsView';
+import { FollowupView } from './FollowupView';
 import { CardEditorView } from './CardEditorView';
 import { CreateDeckView } from './CreateDeckView';
 import { EditDeckView } from './EditDeckView';
 import { RecallSubView } from './SubView';
 import { Deck } from 'src/data/deck';
 import type { SpacedRepetitionItem } from 'src/spaced-repetition';
+import { FollowupReturnTo, FollowupViewContext } from './FollowupView';
 import { CENTERED_VIEW } from '../classes';
 
 export const FILE_VIEW_TYPE = 'recall-view';
@@ -22,13 +29,14 @@ enum ViewMode {
   Empty,
   Decks,
   Review,
+  Followup,
   Cards,
   CardEditor,
   CreateDeck,
   EditDeck,
 }
 
-type LeafNavState = {
+type LegacyLeafNavState = {
   screen?: 'card-editor';
   deckId?: string;
   cardId?: string;
@@ -60,6 +68,7 @@ export class RecallView extends FileView {
   private currentView?: RecallSubView;
   private emptyView: EmptyView;
   private reviewView: ReviewView;
+  private followupView: FollowupView;
   private decksView: DecksView;
   private cardsView: CardsView;
   private cardEditorView: CardEditorView;
@@ -68,11 +77,16 @@ export class RecallView extends FileView {
 
   private viewMode: ViewMode;
   private cardEditorReturnTo: 'decks' | 'review' | { deck: Deck } = 'decks';
+  private followupReturnTo: FollowupReturnTo = 'review';
   private capacitorBackListenerHandle: CapacitorBackListenerHandle | null =
     null;
-  private pendingLeafNavState: LeafNavState | null = null;
+  private legacyRestoreState: LegacyLeafNavState | null = null;
+  private reviewSessionGeneration = 0;
   private readonly handleAddDeckHandler = () => {
     this.handleAddDeck();
+  };
+  private readonly handleDecksLoaded = () => {
+    this.syncViewModeAfterDecksLoaded();
   };
 
   constructor(
@@ -84,6 +98,7 @@ export class RecallView extends FileView {
     this.icon = 'blocks';
 
     this.reviewView = new ReviewView(plugin, this);
+    this.followupView = new FollowupView(plugin, this);
     this.emptyView = new EmptyView(plugin, this);
     this.decksView = new DecksView(plugin, this);
     this.cardsView = new CardsView(plugin, this);
@@ -91,11 +106,31 @@ export class RecallView extends FileView {
     this.createDeckView = new CreateDeckView(plugin, this);
     this.editDeckView = new EditDeckView(plugin, this);
 
-    this.setViewMode(
-      plugin.decksManager.decksArray.length === 0
-        ? ViewMode.Empty
-        : ViewMode.Decks,
-    );
+    this.setViewMode(ViewMode.Decks);
+  }
+
+  private syncViewModeAfterDecksLoaded(): void {
+    if (!this.plugin.decksManager.isLoaded()) {
+      return;
+    }
+
+    const hasDecks = this.plugin.decksManager.decksArray.length > 0;
+
+    if (!hasDecks && this.viewMode === ViewMode.Decks) {
+      this.setViewMode(ViewMode.Empty);
+      this.renderView();
+      return;
+    }
+
+    if (hasDecks && this.viewMode === ViewMode.Empty) {
+      this.setViewMode(ViewMode.Decks);
+      this.renderView();
+      return;
+    }
+
+    if (this.viewMode === ViewMode.Decks) {
+      this.renderView();
+    }
   }
 
   /**
@@ -123,15 +158,26 @@ export class RecallView extends FileView {
     this.tryHandleBackNavigation(ev);
   };
 
-  private isLeafNavSpikeEnabled(): boolean {
-    return Platform.isAndroidApp;
+  private parseLegacyLeafState(state: unknown): LegacyLeafNavState | null {
+    if (
+      !state ||
+      typeof state !== 'object' ||
+      (state as LegacyLeafNavState).screen !== 'card-editor'
+    ) {
+      return null;
+    }
+    return state as LegacyLeafNavState;
   }
 
-  private applyPendingLeafNavState(): void {
-    const state = this.pendingLeafNavState;
-    if (!state) return;
-    this.pendingLeafNavState = null;
-    if (state.screen !== 'card-editor') return;
+  private tryApplyLegacyLeafState(): void {
+    const state = this.legacyRestoreState;
+    if (!state) {
+      return;
+    }
+    this.legacyRestoreState = null;
+    if (state.screen !== 'card-editor') {
+      return;
+    }
 
     const deck = state.deckId
       ? (this.plugin.decksManager.getDecks()[state.deckId] ?? null)
@@ -150,6 +196,26 @@ export class RecallView extends FileView {
     this.cardEditorView.setContext(deck, card);
     this.setViewMode(ViewMode.CardEditor);
     this.renderView();
+  }
+
+  private resolveCardEditorReturnTo(
+    deck: Deck | null | undefined,
+    card: SpacedRepetitionItem | null | undefined,
+    returnTo: 'auto' | 'review' | 'decks' | 'cards',
+  ): 'decks' | 'review' | { deck: Deck } {
+    if (returnTo === 'review') {
+      return 'review';
+    }
+    if (returnTo === 'decks') {
+      return 'decks';
+    }
+    if (returnTo === 'cards' && deck) {
+      return { deck };
+    }
+    if (deck && card) {
+      return { deck };
+    }
+    return 'decks';
   }
 
   private setupCapacitorBackListenerForCurrentView(): void {
@@ -214,6 +280,7 @@ export class RecallView extends FileView {
       case ViewMode.CreateDeck:
       case ViewMode.EditDeck:
       case ViewMode.Review:
+      case ViewMode.Followup:
         return true;
       default:
         return false;
@@ -238,6 +305,9 @@ export class RecallView extends FileView {
       case ViewMode.Review:
         this.openDecksView();
         break;
+      case ViewMode.Followup:
+        this.goBackFromFollowup();
+        break;
       default:
         break;
     }
@@ -248,10 +318,16 @@ export class RecallView extends FileView {
     this.renderView();
 
     this.plugin.getEventEmitter().on('addDeck', this.handleAddDeckHandler);
+    this.plugin
+      .getEventEmitter()
+      .on('decksLoaded', this.handleDecksLoaded);
     this.registerDomEvent(window, 'keydown', this.handleBackKeydown, {
       capture: true,
     });
-    this.applyPendingLeafNavState();
+    void this.plugin.decksManager.whenLoaded().then(() => {
+      this.tryApplyLegacyLeafState();
+      this.syncViewModeAfterDecksLoaded();
+    });
   }
 
   private handleAddDeck(): void {
@@ -274,6 +350,9 @@ export class RecallView extends FileView {
         break;
       case ViewMode.Review:
         this.currentView = this.reviewView;
+        break;
+      case ViewMode.Followup:
+        this.currentView = this.followupView;
         break;
       case ViewMode.Cards:
         this.currentView = this.cardsView;
@@ -301,39 +380,18 @@ export class RecallView extends FileView {
     card?: SpacedRepetitionItem | null,
     returnTo: 'auto' | 'review' | 'decks' | 'cards' = 'auto',
   ): void {
-    if (this.isLeafNavSpikeEnabled() && returnTo !== 'review') {
-      const navReturnTo =
-        returnTo === 'decks' || returnTo === 'cards'
-          ? returnTo
-          : deck && card
-            ? 'cards'
-            : 'decks';
-      const state: LeafNavState = {
-        screen: 'card-editor',
-        deckId: deck?.id,
-        cardId: card?.id,
-        returnTo: navReturnTo,
-      };
-      void this.plugin.openRecallViewInNewLeaf(state);
-      return;
-    }
-    if (returnTo === 'review') {
-      this.cardEditorReturnTo = 'review';
-    } else if (returnTo === 'decks') {
-      this.cardEditorReturnTo = 'decks';
-    } else if (returnTo === 'cards' && deck) {
-      this.cardEditorReturnTo = { deck };
-    } else if (deck && card) {
-      this.cardEditorReturnTo = { deck };
-    } else {
-      this.cardEditorReturnTo = 'decks';
-    }
+    this.cardEditorReturnTo = this.resolveCardEditorReturnTo(
+      deck,
+      card,
+      returnTo,
+    );
     this.cardEditorView.setContext(deck ?? null, card ?? null);
     this.setViewMode(ViewMode.CardEditor);
     this.renderView();
   }
 
   public goBackFromCardEditor(): void {
+    this.cardEditorView.clearSessionState();
     if (this.cardEditorReturnTo === 'decks') {
       this.setViewMode(ViewMode.Decks);
     } else if (this.cardEditorReturnTo === 'review') {
@@ -369,13 +427,58 @@ export class RecallView extends FileView {
 
   /**
    * Starts reviewing a specific deck.
-   * This function updates the deck for the `review-view`, sets the
-   * view mode and rerenders the current view.
+   * Opens review immediately from in-memory data, then reloads from disk.
    * @param deck The deck which will be reviewed.
    */
-  public async startReviewingDeck(deck: Deck): Promise<void> {
-    await this.reviewView.setDeck(deck);
+  public startReviewingDeck(deck: Deck): void {
+    const generation = ++this.reviewSessionGeneration;
+    try {
+      this.reviewView.prepareDeck(deck.id);
+    } catch (error) {
+      console.error('Failed to start review:', error);
+      new Notice('Could not start review. Please try again.');
+      return;
+    }
+
     this.setViewMode(ViewMode.Review);
+    this.renderView();
+    void this.refreshReviewDeck(deck.id, generation);
+  }
+
+  private async refreshReviewDeck(
+    deckId: string,
+    generation: number,
+  ): Promise<void> {
+    try {
+      await this.reviewView.syncDeckFromFile(deckId);
+    } catch (error) {
+      if (generation !== this.reviewSessionGeneration) {
+        return;
+      }
+      console.error('Failed to reload deck for review:', error);
+      new Notice('Could not reload deck for review.');
+    }
+  }
+
+  public goBackFromFollowup(): void {
+    if (this.followupReturnTo === 'review') {
+      this.reviewView.prepareResumeFromFollowup();
+      this.setViewMode(ViewMode.Review);
+    } else {
+      this.setViewMode(ViewMode.CardEditor);
+    }
+    this.renderView();
+  }
+
+  public openFollowupView(context: FollowupViewContext): void {
+    this.followupReturnTo = context.returnTo;
+    if (context.returnTo === 'review') {
+      this.reviewView.markForFollowupReturn();
+    } else {
+      this.cardEditorView.preserveFormStateForFollowup();
+    }
+    this.followupView.setContext(context);
+    this.setViewMode(ViewMode.Followup);
     this.renderView();
   }
 
@@ -399,13 +502,9 @@ export class RecallView extends FileView {
 
   async setState(state: unknown, result: ViewStateResult): Promise<void> {
     await super.setState(state, result);
-    if (
-      state &&
-      typeof state === 'object' &&
-      (state as LeafNavState).screen === 'card-editor'
-    ) {
-      this.pendingLeafNavState = state as LeafNavState;
-      this.applyPendingLeafNavState();
+    const legacy = this.parseLegacyLeafState(state);
+    if (legacy) {
+      this.legacyRestoreState = legacy;
     }
   }
 
@@ -413,12 +512,14 @@ export class RecallView extends FileView {
     this.teardownCapacitorBackListener();
     this.currentView?.onClose();
     this.plugin.getEventEmitter().off('addDeck', this.handleAddDeckHandler);
+    this.plugin
+      .getEventEmitter()
+      .off('decksLoaded', this.handleDecksLoaded);
     await super.onClose();
   }
 
-  getState() {
-    const state = super.getState();
-    return state;
+  getState(): Record<string, never> {
+    return {};
   }
 
   getDisplayText(): string {

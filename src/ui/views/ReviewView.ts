@@ -14,8 +14,10 @@ import {
   Component,
   getIcon,
   MarkdownRenderer,
+  Notice,
 } from 'obsidian';
 import { formatTimeDifference } from 'src/util';
+import { CardEditProposal, GeminiChatMessage } from 'src/util/gemini';
 
 enum ReviewState {
   ONGOING,
@@ -28,14 +30,17 @@ export class ReviewView extends RecallSubView {
   private vaultRootPath: string;
 
   private answerButtonsBarEl: HTMLElement;
-  private recallButtonsBarEl: HTMLElement | undefined;
+  private answerRevealed = false;
 
   private cardFrontEl: HTMLElement;
   private dividerEl: HTMLElement;
   private cardBackEl: HTMLElement;
   private editButtonContainerEl: HTMLElement;
   private editButton: ButtonComponent;
+  private followupButton: ButtonComponent;
+  private flipSideButton: ButtonComponent;
   private showAnswerButton: ButtonComponent;
+  private showingBack = false;
   private remainingCountEl: HTMLElement;
   private previousCardButton: ButtonComponent;
   private nextCardButton: ButtonComponent;
@@ -51,6 +56,10 @@ export class ReviewView extends RecallSubView {
   private currentSessionIndex = -1;
   private shuffleModeEnabled = true;
   private readonly answeredItemIds = new Set<string>();
+  private readonly followupConversations = new Map<string, GeminiChatMessage[]>();
+  private shouldResumeFromFollowup = false;
+  private followupResumeWithRecallButtons = false;
+  private followupResumeItemId: string | null = null;
 
   /** Component for MarkdownRenderer; short-lived so it can be unloaded and avoid memory leaks. */
   private readonly markdownComponent = new Component();
@@ -59,10 +68,7 @@ export class ReviewView extends RecallSubView {
       return;
     }
 
-    const isAnswerButtonsBarVisible = !this.answerButtonsBarEl.hasClass(
-      'better-recall--display-none',
-    );
-    if (isAnswerButtonsBarVisible) {
+    if (!this.answerRevealed) {
       if (event.key === ' ') {
         this.showRecallButtons();
       }
@@ -99,14 +105,59 @@ export class ReviewView extends RecallSubView {
     this.recallView.addChild(this.markdownComponent);
   }
 
-  public async setDeck(deck: Deck): Promise<void> {
-    // Reload the deck from file to get the latest data
-    await this.plugin.decksManager.reloadDeck(deck.id);
-    this.deck = this.plugin.decksManager.getDecks()[deck.id];
+  /**
+   * Prepares a review session from the in-memory deck (instant UI).
+   */
+  public prepareDeck(deckId: string): void {
+    const deck = this.plugin.decksManager.getDecks()[deckId];
+    if (!deck) {
+      throw new Error(`Deck not found: ${deckId}`);
+    }
+    this.applyDeckSession(deck);
+  }
+
+  /**
+   * Reloads deck data from disk without resetting the active review session.
+   */
+  public async syncDeckFromFile(deckId: string): Promise<void> {
+    await this.plugin.decksManager.reloadDeck(deckId);
+    const deck = this.plugin.decksManager.getDecks()[deckId];
+    if (!deck) {
+      throw new Error(`Deck not found after reload: ${deckId}`);
+    }
+    this.deck = deck;
+
+    if (this.currentItem) {
+      const updatedCurrent = deck.cards[this.currentItem.id];
+      if (updatedCurrent) {
+        this.currentItem = updatedCurrent;
+      }
+    }
+
+    this.sessionItems = this.sessionItems.map(
+      (item) => deck.cards[item.id] ?? item,
+    );
+
+    deck.cardsArray.forEach((card) => {
+      this.plugin.algorithm.replaceItem(card);
+    });
+
+    if (this.answerRevealed && this.currentItem && this.answerButtonsBarEl?.isConnected) {
+      if (this.isCurrentItemAnswered()) {
+        this.renderReviewedCardButtons();
+      } else {
+        this.renderRecallButtons();
+      }
+      this.renderCardMarkdown(this.currentItem);
+    }
+  }
+
+  private applyDeckSession(deck: Deck): void {
+    this.deck = deck;
     // Resets all the items for the algorithm to not have duplicated entries
     // when restarting the recall view.
     this.plugin.algorithm.resetItems();
-    this.deck.cardsArray.forEach((card) => this.plugin.algorithm.addItem(card));
+    deck.cardsArray.forEach((card) => this.plugin.algorithm.addItem(card));
     // Starts new session with the items added before.
     this.plugin.algorithm.startNewSession();
     if (this.shuffleModeEnabled) {
@@ -115,12 +166,16 @@ export class ReviewView extends RecallSubView {
     this.sessionItems = [];
     this.currentSessionIndex = -1;
     this.answeredItemIds.clear();
+    this.clearFollowupConversations();
     this.state = ReviewState.ONGOING;
   }
 
   public render(): void {
     this.rootEl = this.recallView.rootEl.createDiv('better-recall-recall-view');
-    activeDocument.addEventListener('keypress', this.handleKeyInput);
+    const keyTarget =
+      typeof activeDocument !== 'undefined' ? activeDocument : document;
+    keyTarget.removeEventListener('keypress', this.handleKeyInput);
+    keyTarget.addEventListener('keypress', this.handleKeyInput);
     this.renderBackButton(this.rootEl);
     if (!this.deck) {
       this.rootEl.createEl('p', {
@@ -137,7 +192,28 @@ export class ReviewView extends RecallSubView {
     this.editButtonContainerEl = this.contentEl.createDiv(
       'better-recall-review-card__edit-container better-recall--display-none',
     );
-    this.editButton = new ButtonComponent(this.editButtonContainerEl);
+    const cardActionButtonsEl = this.editButtonContainerEl.createDiv(
+      'better-recall-review-card__action-buttons',
+    );
+    this.flipSideButton = new ButtonComponent(cardActionButtonsEl);
+    this.flipSideButton.buttonEl.addClass(
+      'better-recall-review-card__flip-side-button',
+    );
+    this.flipSideButton.onClick(() => this.toggleCardSide());
+    this.followupButton = new ButtonComponent(cardActionButtonsEl);
+    this.followupButton.buttonEl.addClass(
+      'better-recall-review-card__followup-button',
+    );
+    this.followupButton.setTooltip('Ask AI follow-up');
+    this.followupButton.onClick(() => this.openFollowupChat());
+    const followupIcon = getIcon('brain');
+    if (followupIcon) {
+      this.followupButton.buttonEl.empty();
+      this.followupButton.buttonEl.appendChild(followupIcon);
+    } else {
+      this.followupButton.setButtonText('🧠');
+    }
+    this.editButton = new ButtonComponent(cardActionButtonsEl);
     this.editButton.buttonEl.addClass('better-recall-review-card__edit-button');
     this.editButton.setButtonText('✏️ edit');
     this.editButton.onClick(() => {
@@ -160,6 +236,12 @@ export class ReviewView extends RecallSubView {
     });
 
     this.renderAnswerButtons();
+    if (this.shouldResumeFromFollowup && this.state === ReviewState.ONGOING) {
+      if (this.tryResumeAfterFollowup()) {
+        return;
+      }
+      this.clearFollowupResumeState();
+    }
     if (this.shouldResumeFromCardEditor && this.state === ReviewState.ONGOING) {
       if (this.tryResumeAfterCardEditor()) {
         return;
@@ -167,6 +249,80 @@ export class ReviewView extends RecallSubView {
       this.clearCardEditorResumeState();
     }
     this.showNextItem();
+  }
+
+  public markForFollowupReturn(): void {
+    this.shouldResumeFromFollowup = true;
+    this.followupResumeWithRecallButtons = this.isAnswerRevealed();
+    this.followupResumeItemId = this.currentItem?.id ?? null;
+  }
+
+  public prepareResumeFromFollowup(): void {
+    if (!this.followupResumeItemId || !this.deck) {
+      return;
+    }
+
+    const latestDeck = this.plugin.decksManager.getDecks()[this.deck.id];
+    if (!latestDeck) {
+      return;
+    }
+
+    this.deck = latestDeck;
+    const latestItem = latestDeck.cards[this.followupResumeItemId];
+    if (!latestItem) {
+      return;
+    }
+
+    this.currentItem = latestItem;
+    const sessionIndex = this.sessionItems.findIndex(
+      (item) => item.id === this.followupResumeItemId,
+    );
+    if (sessionIndex >= 0) {
+      this.currentSessionIndex = sessionIndex;
+      this.sessionItems[sessionIndex] = latestItem;
+    } else if (this.currentSessionIndex >= 0) {
+      this.sessionItems[this.currentSessionIndex] = latestItem;
+    }
+    this.plugin.algorithm.replaceItem(latestItem);
+  }
+
+  private tryResumeAfterFollowup(): boolean {
+    const itemId = this.followupResumeItemId;
+    if (!itemId || !this.deck) {
+      return false;
+    }
+
+    const latestItem = this.deck.cards[itemId];
+    if (!latestItem) {
+      return false;
+    }
+
+    this.currentItem = latestItem;
+    const sessionIndex = this.sessionItems.findIndex(
+      (item) => item.id === itemId,
+    );
+    if (sessionIndex >= 0) {
+      this.currentSessionIndex = sessionIndex;
+      this.sessionItems[sessionIndex] = latestItem;
+    }
+    this.plugin.algorithm.replaceItem(latestItem);
+
+    if (this.followupResumeWithRecallButtons) {
+      this.renderCurrentItem(latestItem);
+      this.updateSessionControls();
+      this.showRecallButtons();
+    } else {
+      this.showCurrentItemQuestion();
+    }
+
+    this.clearFollowupResumeState();
+    return true;
+  }
+
+  private clearFollowupResumeState(): void {
+    this.shouldResumeFromFollowup = false;
+    this.followupResumeWithRecallButtons = false;
+    this.followupResumeItemId = null;
   }
 
   private markForCardEditorReturn(): void {
@@ -242,17 +398,11 @@ export class ReviewView extends RecallSubView {
   }
 
   private isAnswerRevealed(): boolean {
-    return (
-      Boolean(this.recallButtonsBarEl?.isConnected) &&
-      Boolean(this.answerButtonsBarEl?.hasClass('better-recall--display-none'))
-    );
+    return this.answerRevealed;
   }
 
-  private clearRecallButtonsBar(): void {
-    if (this.recallButtonsBarEl) {
-      this.recallButtonsBarEl.remove();
-      this.recallButtonsBarEl = undefined;
-    }
+  private clearButtonsBar(): void {
+    this.answerButtonsBarEl?.empty();
   }
 
   private renderSessionControls(): void {
@@ -292,6 +442,12 @@ export class ReviewView extends RecallSubView {
     this.answerButtonsBarEl = this.rootEl.createDiv(
       `${BUTTONS_BAR_CLASS} better-recall-review-card__answer-buttons-bar`,
     );
+    this.renderShowAnswerButton();
+  }
+
+  private renderShowAnswerButton(): void {
+    this.clearButtonsBar();
+    this.answerRevealed = false;
 
     this.showAnswerButton = new ButtonComponent(
       this.answerButtonsBarEl,
@@ -304,12 +460,10 @@ export class ReviewView extends RecallSubView {
   }
 
   private renderRecallButtons(): void {
-    if (!this.currentItem) {
+    if (!this.currentItem || !this.answerButtonsBarEl) {
       return;
     }
-    this.recallButtonsBarEl = this.rootEl.createDiv(
-      `${BUTTONS_BAR_CLASS} better-recall-review-card__answer-buttons-bar`,
-    );
+    this.clearButtonsBar();
 
     this.renderButton(PerformanceResponse.AGAIN, '❌', 'Again');
 
@@ -321,11 +475,8 @@ export class ReviewView extends RecallSubView {
   }
 
   private renderReviewedCardButtons(): void {
-    this.clearRecallButtonsBar();
-    this.recallButtonsBarEl = this.rootEl.createDiv(
-      `${BUTTONS_BAR_CLASS} better-recall-review-card__answer-buttons-bar`,
-    );
-    new ButtonComponent(this.recallButtonsBarEl)
+    this.clearButtonsBar();
+    new ButtonComponent(this.answerButtonsBarEl)
       .setButtonText('Reviewed')
       .setDisabled(true);
   }
@@ -335,11 +486,11 @@ export class ReviewView extends RecallSubView {
     emoji: string,
     text: string,
   ): void {
-    if (!this.currentItem || !this.recallButtonsBarEl) {
+    if (!this.currentItem || !this.answerButtonsBarEl) {
       return;
     }
 
-    const button = new ButtonComponent(this.recallButtonsBarEl);
+    const button = new ButtonComponent(this.answerButtonsBarEl);
     const emojiEl = button.buttonEl.createSpan();
     const textEl = button.buttonEl.createSpan();
     const timeEl = button.buttonEl.createSpan(
@@ -354,19 +505,46 @@ export class ReviewView extends RecallSubView {
         performanceResponse,
       );
     timeEl.setText(formatTimeDifference(nextReviewDate));
-    button.onClick(() => void this.handleResponse(performanceResponse));
+    button.onClick((event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.handleResponse(performanceResponse);
+    });
+  }
+
+  private setCardSideDisplay(showBack: boolean): void {
+    this.showingBack = showBack;
+    if (showBack) {
+      this.cardFrontEl.addClass('better-recall--display-none');
+      this.cardFrontEl.hide();
+      this.cardBackEl.removeClass('better-recall--display-none');
+      this.cardBackEl.show();
+    } else {
+      this.cardFrontEl.removeClass('better-recall--display-none');
+      this.cardFrontEl.show();
+      this.cardBackEl.addClass('better-recall--display-none');
+      this.cardBackEl.hide();
+    }
+    this.dividerEl.addClass('better-recall--display-none');
+    this.dividerEl.hide();
+    this.updateFlipSideButtonLabel();
+  }
+
+  private updateFlipSideButtonLabel(): void {
+    this.flipSideButton.setButtonText(
+      this.showingBack ? 'Show front' : 'Show back',
+    );
+  }
+
+  private toggleCardSide(): void {
+    this.setCardSideDisplay(!this.showingBack);
   }
 
   private showRecallButtons(): void {
-    this.clearRecallButtonsBar();
-    this.cardFrontEl.addClass('better-recall--display-none');
-    this.cardFrontEl.hide();
-    this.cardBackEl.removeClass('better-recall--display-none');
-    this.cardBackEl.show();
-    this.dividerEl.addClass('better-recall--display-none');
-    this.dividerEl.hide();
+    this.answerRevealed = true;
+    this.setCardSideDisplay(true);
     this.editButtonContainerEl.removeClass('better-recall--display-none');
-    this.answerButtonsBarEl.addClass('better-recall--display-none');
+    this.updateFollowupButtonState();
     if (this.isCurrentItemAnswered()) {
       this.renderReviewedCardButtons();
       return;
@@ -375,12 +553,7 @@ export class ReviewView extends RecallSubView {
   }
 
   private showNextItem(): void {
-    this.clearRecallButtonsBar();
-
-    this.answerButtonsBarEl.removeClass('better-recall--display-none');
-    this.showAnswerButton.buttonEl.show();
-    this.cardFrontEl.removeClass('better-recall--display-none');
-    this.cardFrontEl.show();
+    this.renderShowAnswerButton();
 
     if (this.currentSessionIndex < this.sessionItems.length - 1) {
       this.currentSessionIndex += 1;
@@ -394,17 +567,17 @@ export class ReviewView extends RecallSubView {
     }
 
     this.editButtonContainerEl.addClass('better-recall--display-none');
-    this.dividerEl.addClass('better-recall--display-none');
-    this.dividerEl.hide();
-    this.cardBackEl.addClass('better-recall--display-none');
-    this.cardBackEl.hide();
+    this.setCardSideDisplay(false);
     if (this.currentItem) {
       this.renderCurrentItem(this.currentItem);
       this.updateSessionControls();
+      this.updateFollowupButtonState();
     } else {
       this.cardFrontEl.setText('Review session complete 🚀!');
-      this.showAnswerButton.buttonEl.hide();
+      this.clearButtonsBar();
+      this.answerRevealed = false;
       this.state = ReviewState.FINISHED;
+      this.clearFollowupConversations();
       this.updateSessionControls();
     }
   }
@@ -419,20 +592,14 @@ export class ReviewView extends RecallSubView {
   }
 
   private showCurrentItemQuestion(): void {
-    this.clearRecallButtonsBar();
-    this.answerButtonsBarEl.removeClass('better-recall--display-none');
-    this.showAnswerButton.buttonEl.show();
+    this.renderShowAnswerButton();
     this.editButtonContainerEl.addClass('better-recall--display-none');
-    this.cardFrontEl.removeClass('better-recall--display-none');
-    this.cardFrontEl.show();
-    this.dividerEl.addClass('better-recall--display-none');
-    this.dividerEl.hide();
-    this.cardBackEl.addClass('better-recall--display-none');
-    this.cardBackEl.hide();
+    this.setCardSideDisplay(false);
     if (this.currentItem) {
       this.renderCurrentItem(this.currentItem);
     }
     this.updateSessionControls();
+    this.updateFollowupButtonState();
   }
 
   private toggleShuffleMode(): void {
@@ -475,8 +642,129 @@ export class ReviewView extends RecallSubView {
   }
 
   private renderCurrentItem(item: SpacedRepetitionItem): void {
-    // Need to empty the elements because `MarkdownRenderer` will always append
-    // the markdown to the elements.
+    this.renderCardMarkdown(item);
+  }
+
+  private async handleResponse(response: PerformanceResponse): Promise<void> {
+    if (!this.currentItem || this.isCurrentItemAnswered()) {
+      return;
+    }
+
+    try {
+      this.plugin.algorithm.updateItemAfterReview(this.currentItem, response);
+      // Update the card in the deck
+      this.deck.cards[this.currentItem.id] = this.currentItem;
+      if (response === PerformanceResponse.AGAIN) {
+        this.answeredItemIds.delete(this.currentItem.id);
+      } else {
+        this.answeredItemIds.add(this.currentItem.id);
+      }
+      if (this.shuffleModeEnabled) {
+        this.plugin.algorithm.shuffleQueuedItems();
+      }
+      // Save the deck to file
+      await this.plugin.decksManager.saveDeckToFile(this.deck.id);
+      this.showNextItem();
+    } catch (error) {
+      console.error('Failed to save review response:', error);
+      new Notice('Could not save review. Please try again.', 5000);
+    }
+  }
+
+  private openFollowupChat(): void {
+    if (!this.currentItem || !this.deck) {
+      return;
+    }
+
+    const apiKey = this.plugin.getSettings().geminiApiKey;
+    if (!apiKey.trim()) {
+      new Notice('Add a Gemini API key in Language Recall settings', 5000);
+      return;
+    }
+
+    this.recallView.openFollowupView({
+      mode: 'review',
+      returnTo: 'review',
+      deck: this.deck,
+      card: this.currentItem,
+      getCardContent: () => ({
+        front: this.currentItem!.content.front,
+        back: this.currentItem!.content.back,
+      }),
+      initialMessages: this.getFollowupMessages(this.currentItem.id),
+      onMessagesChange: (messages) =>
+        this.setFollowupMessages(this.currentItem!.id, messages),
+      onApplyCardEdit: (edit) => this.applyFollowupCardEdit(edit),
+    });
+  }
+
+  private getFollowupMessages(cardId: string): GeminiChatMessage[] {
+    return this.followupConversations.get(cardId) ?? [];
+  }
+
+  private setFollowupMessages(
+    cardId: string,
+    messages: GeminiChatMessage[],
+  ): void {
+    if (messages.length === 0) {
+      this.followupConversations.delete(cardId);
+    } else {
+      this.followupConversations.set(cardId, messages);
+    }
+    this.updateFollowupButtonState();
+  }
+
+  private clearFollowupConversations(): void {
+    this.followupConversations.clear();
+    this.updateFollowupButtonState();
+  }
+
+  private updateFollowupButtonState(): void {
+    if (!this.currentItem || !this.followupButton) {
+      return;
+    }
+    const hasConversation = this.followupConversations.has(this.currentItem.id);
+    this.followupButton.buttonEl.toggleClass('is-active', hasConversation);
+    this.followupButton.setTooltip(
+      hasConversation ? 'AI follow-up (saved)' : 'Ask AI follow-up',
+    );
+  }
+
+  private async applyFollowupCardEdit(
+    edit: CardEditProposal,
+  ): Promise<CardEditProposal> {
+    if (!this.currentItem || !this.deck) {
+      throw new Error('No card is being reviewed');
+    }
+
+    const updatedCard = {
+      ...this.currentItem,
+      content: {
+        front: edit.front,
+        back: edit.back,
+      },
+    };
+
+    await this.plugin.decksManager.updateCardContent(this.deck.id, updatedCard);
+    this.deck.cards[updatedCard.id] = updatedCard;
+    this.currentItem = updatedCard;
+
+    const sessionIndex = this.sessionItems.findIndex(
+      (item) => item.id === updatedCard.id,
+    );
+    if (sessionIndex >= 0) {
+      this.sessionItems[sessionIndex] = updatedCard;
+    }
+
+    this.plugin.algorithm.replaceItem(updatedCard);
+    if (this.cardFrontEl?.isConnected && this.cardBackEl?.isConnected) {
+      this.renderCardMarkdown(updatedCard);
+    }
+
+    return updatedCard.content;
+  }
+
+  private renderCardMarkdown(item: SpacedRepetitionItem): void {
     this.cardFrontEl.empty();
     this.cardBackEl.empty();
 
@@ -495,7 +783,6 @@ export class ReviewView extends RecallSubView {
       this.markdownComponent,
     );
 
-    // TODO: Check why event listeners are deactivated for internal links.
     this.cardFrontEl.querySelectorAll('a.internal-link').forEach((link) => {
       link.addEventListener('click', this.handleInternalLinkClick);
     });
@@ -504,24 +791,11 @@ export class ReviewView extends RecallSubView {
     });
   }
 
-  private async handleResponse(response: PerformanceResponse): Promise<void> {
-    if (this.currentItem && !this.isCurrentItemAnswered()) {
-      this.plugin.algorithm.updateItemAfterReview(this.currentItem, response);
-      // Update the card in the deck
-      this.deck.cards[this.currentItem.id] = this.currentItem;
-      this.answeredItemIds.add(this.currentItem.id);
-      if (this.shuffleModeEnabled) {
-        this.plugin.algorithm.shuffleQueuedItems();
-      }
-      // Save the deck to file
-      await this.plugin.decksManager.saveDeckToFile(this.deck.id);
-      this.showNextItem();
-    }
-  }
-
   public onClose(): void {
     super.onClose();
-    activeDocument.removeEventListener('keypress', this.handleKeyInput);
+    const keyTarget =
+      typeof activeDocument !== 'undefined' ? activeDocument : document;
+    keyTarget.removeEventListener('keypress', this.handleKeyInput);
     this.cardFrontEl?.querySelectorAll('a.internal-link').forEach((link) => {
       link.removeEventListener('click', this.handleInternalLinkClick);
     });
