@@ -235,6 +235,8 @@ export class FollowupChatPanel {
         geminiModel: settings.geminiModel || 'gemini-2.5-flash',
         groqApiKey: settings.groqApiKey,
         openRouterApiKey: settings.openRouterApiKey,
+        systemPrompt: settings.systemPrompt,
+        chatHistoryLimit: settings.chatHistoryLimit,
         cardFront: this.cardFront,
         cardBack: this.cardBack,
         messages: this.messages,

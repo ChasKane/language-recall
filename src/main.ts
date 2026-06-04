@@ -157,6 +157,14 @@ export default class BetterRecallPlugin extends Plugin {
     this.getSettings().openRouterApiKey = apiKey;
   }
 
+  public setSystemPrompt(systemPrompt: string): void {
+    this.getSettings().systemPrompt = systemPrompt;
+  }
+
+  public setChatHistoryLimit(limit: number): void {
+    this.getSettings().chatHistoryLimit = limit;
+  }
+
   public getData(): BetterRecallData {
     return this.data;
   }

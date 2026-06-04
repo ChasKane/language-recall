@@ -116,8 +116,14 @@ export function buildGeminiSystemInstruction(
   cardFront: string,
   cardBack: string,
   mode: FollowupMode = 'review',
+  systemPrompt?: string,
 ): string {
-  return buildFollowupSystemInstruction(cardFront, cardBack, mode);
+  return buildFollowupSystemInstruction(
+    cardFront,
+    cardBack,
+    mode,
+    systemPrompt,
+  );
 }
 
 export function parseGeminiFollowupResponse(
@@ -211,6 +217,7 @@ export async function sendGeminiFollowup(
     messages,
     userMessage,
     mode = 'review',
+    systemPrompt,
     signal,
   } = options;
 
@@ -247,7 +254,14 @@ export async function sendGeminiFollowup(
     body: JSON.stringify({
       systemInstruction: {
         parts: [
-          { text: buildFollowupSystemInstruction(cardFront, cardBack, mode) },
+          {
+            text: buildFollowupSystemInstruction(
+              cardFront,
+              cardBack,
+              mode,
+              systemPrompt,
+            ),
+          },
         ],
       },
       contents: buildGeminiContents(messages, trimmedMessage),

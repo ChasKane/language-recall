@@ -12,6 +12,9 @@ export interface BetterRecallSettings {
   geminiModel: string;
   groqApiKey: string;
   openRouterApiKey: string;
+  systemPrompt: string;
+  /** 0 = only current message, -1 = whole conversation, N = last N prior messages */
+  chatHistoryLimit: number;
 }
 
 export const DEFAULT_SETTINGS: BetterRecallSettings = {
@@ -24,4 +27,6 @@ export const DEFAULT_SETTINGS: BetterRecallSettings = {
   geminiModel: 'gemini-2.5-flash',
   groqApiKey: '',
   openRouterApiKey: '',
+  systemPrompt: '',
+  chatHistoryLimit: 2,
 };

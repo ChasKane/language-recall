@@ -60,6 +60,7 @@ export async function sendOpenRouterFollowup(
     messages,
     userMessage,
     mode = 'review',
+    systemPrompt,
     signal,
   } = options;
 
@@ -78,6 +79,7 @@ export async function sendOpenRouterFollowup(
     cardFront,
     cardBack,
     mode,
+    systemPrompt,
   );
 
   const response = await requestUrl({

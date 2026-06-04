@@ -27,6 +27,8 @@ export interface FollowupRequestOptions {
   messages: FollowupChatMessage[];
   userMessage: string;
   mode?: FollowupMode;
+  systemPrompt?: string;
+  chatHistoryLimit?: number;
   signal?: AbortSignal;
 }
 
@@ -87,6 +89,52 @@ export function getFollowupOpenAiTools(mode: FollowupMode = 'review') {
   return tools;
 }
 
+export const CHAT_HISTORY_WHOLE = -1;
+
+export function selectMessagesForContext(
+  messages: FollowupChatMessage[],
+  limit: number,
+): FollowupChatMessage[] {
+  if (limit <= 0 || messages.length === 0) {
+    return [];
+  }
+  if (limit === CHAT_HISTORY_WHOLE) {
+    return messages;
+  }
+  return messages.slice(-limit);
+}
+
+export function chatHistoryLimitFromSlider(sliderValue: number): number {
+  if (sliderValue <= 0) {
+    return 0;
+  }
+  if (sliderValue >= 100) {
+    return CHAT_HISTORY_WHOLE;
+  }
+  const pairCount = Math.max(1, Math.round((sliderValue / 100) * 15));
+  return pairCount * 2;
+}
+
+export function chatHistorySliderFromLimit(limit: number): number {
+  if (limit <= 0) {
+    return 0;
+  }
+  if (limit === CHAT_HISTORY_WHOLE) {
+    return 100;
+  }
+  return Math.min(99, Math.round((limit / 2 / 15) * 100));
+}
+
+export function describeChatHistoryLimit(limit: number): string {
+  if (limit <= 0) {
+    return 'Only current message';
+  }
+  if (limit === CHAT_HISTORY_WHOLE) {
+    return 'Whole conversation';
+  }
+  return `Last ${limit} messages`;
+}
+
 export function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
     throw new DOMException('Follow-up request cancelled', 'AbortError');
@@ -97,6 +145,7 @@ export function buildFollowupSystemInstruction(
   cardFront: string,
   cardBack: string,
   mode: FollowupMode = 'review',
+  systemPrompt?: string,
 ): string {
   const draftLines =
     mode === 'draft'
@@ -108,7 +157,8 @@ export function buildFollowupSystemInstruction(
         ]
       : [];
 
-  return [
+  const customPrompt = systemPrompt?.trim();
+  const builtInLines = [
     'You are a helpful language-learning assistant.',
     'The user is reviewing a flashcard and may ask follow-up questions about it.',
     ...draftLines,
@@ -127,9 +177,13 @@ export function buildFollowupSystemInstruction(
     '',
     'Flashcard back:',
     cardBack,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  ].filter(Boolean);
+
+  if (customPrompt) {
+    return [customPrompt, '', ...builtInLines].join('\n');
+  }
+
+  return builtInLines.join('\n');
 }
 
 export function buildCardUpdatedContextMessage(

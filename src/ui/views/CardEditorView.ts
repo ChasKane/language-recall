@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Notice } from 'obsidian';
+import { ButtonComponent, Notice, getIcon } from 'obsidian';
 import { RecallSubView } from './SubView';
 import BetterRecallPlugin from 'src/main';
 import { RecallView } from '.';
@@ -65,7 +65,9 @@ export class CardEditorView extends RecallSubView {
     this.rootEl = this.recallView.rootEl.createDiv(
       'better-recall-card-editor-view',
     );
-    this.renderBackButton(this.rootEl);
+    this.renderBackButton(this.rootEl, undefined, (trailingEl) =>
+      this.renderAiButton(trailingEl),
+    );
 
     const mode = this.card ? 'edit' : 'add';
     const deck = this.deck ?? null;
@@ -87,14 +89,33 @@ export class CardEditorView extends RecallSubView {
         initialDeckId,
       },
       {
-        onCancel: () => this.recallView.goBackFromCardEditor(),
         onSubmit: () => this.handleSubmit(),
-        onOpenAi: () => this.openFollowupChat(),
-        hasAiConversation: this.followupMessages.length > 0,
         onDuplicate: mode === 'edit' ? () => this.handleDuplicate() : undefined,
         onDelete: mode === 'edit' ? () => this.handleDelete() : undefined,
       },
     );
+  }
+
+  private renderAiButton(parent: HTMLElement): void {
+    const aiButton = new ButtonComponent(parent);
+    aiButton.setTooltip(
+      this.followupMessages.length > 0
+        ? 'AI assistant (saved conversation)'
+        : 'Open AI assistant',
+    );
+    aiButton.onClick(() => this.openFollowupChat());
+    aiButton.buttonEl.addClass('better-recall-card-editor__ai-button');
+    if (this.followupMessages.length > 0) {
+      aiButton.buttonEl.addClass('is-active');
+    }
+
+    const aiIcon = getIcon('brain');
+    if (aiIcon) {
+      aiButton.buttonEl.empty();
+      aiButton.buttonEl.appendChild(aiIcon);
+    } else {
+      aiButton.setButtonText('🧠 AI');
+    }
   }
 
   private openFollowupChat(): void {

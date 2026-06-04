@@ -39,6 +39,11 @@ export class ButtonsBarComponent extends Component {
     return this;
   }
 
+  public hideCloseButton(): ButtonsBarComponent {
+    this.closeButtonComp.buttonEl.addClass('better-recall--display-none');
+    return this;
+  }
+
   public setSubmitButtonDisabled(disabled: boolean): ButtonsBarComponent {
     this.submitButtonComp.setDisabled(disabled);
     return this;

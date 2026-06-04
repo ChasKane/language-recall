@@ -10,8 +10,15 @@ export abstract class RecallSubView {
 
   public abstract render(): void;
 
-  protected renderBackButton(parent: HTMLElement, onBack?: () => void): void {
+  protected renderBackButton(
+    parent: HTMLElement,
+    onBack?: () => void,
+    renderTrailing?: (trailingEl: HTMLElement) => void,
+  ): void {
     const backRowEl = parent.createDiv('better-recall-view-back-row');
+    if (renderTrailing) {
+      backRowEl.addClass('better-recall-view-back-row--split');
+    }
     const backButton = new ButtonComponent(backRowEl);
     backButton.setButtonText('Back');
     backButton.onClick((ev) => {
@@ -20,6 +27,12 @@ export abstract class RecallSubView {
       (onBack ?? (() => this.recallView.handleBack()))();
     });
     backButton.buttonEl.addClass('better-recall-view-back-button');
+    if (renderTrailing) {
+      const trailingEl = backRowEl.createDiv(
+        'better-recall-view-back-row__trailing',
+      );
+      renderTrailing(trailingEl);
+    }
   }
 
   public onClose() {}

@@ -6,6 +6,11 @@ import {
 } from 'obsidian';
 import BetterRecallPlugin from 'src/main';
 import { DEFAULT_SETTINGS } from 'src/settings/data';
+import {
+  chatHistoryLimitFromSlider,
+  chatHistorySliderFromLimit,
+  describeChatHistoryLimit,
+} from 'src/util/followup';
 
 export class SettingsTab extends PluginSettingTab {
   constructor(private plugin: BetterRecallPlugin) {
@@ -141,6 +146,89 @@ export class SettingsTab extends PluginSettingTab {
             void this.plugin.savePluginData();
           });
       });
+
+    new Setting(this.containerEl)
+      .setName('System prompt')
+      .setDesc(
+        'Optional instructions sent with every AI chat request (Gemini, Groq, and OpenRouter). Use this for your target language, proficiency level, preferred explanation style, or other standing context. Your text is prepended to the plugin\'s built-in prompt for the current card.',
+      )
+      .addTextArea((text) => {
+        text
+          .setPlaceholder(
+            'Example: I am learning Brazilian Portuguese at B1 level. Explain grammar briefly and give one short example sentence.',
+          )
+          .setValue(this.plugin.getSettings().systemPrompt)
+          .onChange((value) => {
+            this.plugin.setSystemPrompt(value);
+            void this.plugin.savePluginData();
+          });
+        text.inputEl.rows = 4;
+        text.inputEl.addClass('better-recall-settings__system-prompt');
+      });
+
+    const chatHistorySetting = new Setting(this.containerEl)
+      .setName('Chat history sent to AI')
+      .setDesc(
+        'How much prior chat to include with each request. More history helps the AI stay on topic but increases token usage and cost. Long conversations can also degrade answer quality as older messages dilute the context.',
+      );
+    chatHistorySetting.settingEl.addClass(
+      'better-recall-settings__chat-history-setting',
+    );
+
+    const chatHistoryContainer = chatHistorySetting.settingEl.createDiv(
+      'better-recall-settings__slider-container',
+    );
+
+    const chatHistoryLabelRow = chatHistoryContainer.createDiv(
+      'better-recall-settings__slider-labels',
+    );
+    chatHistoryLabelRow.createSpan({
+      cls: 'better-recall-settings__slider-end-label',
+      text: 'Only current message',
+    });
+    chatHistoryLabelRow.createSpan({
+      cls: 'better-recall-settings__slider-end-label',
+      text: 'Whole conversation',
+    });
+
+    const chatHistorySliderRow = chatHistoryContainer.createDiv(
+      'better-recall-settings__slider-row',
+    );
+
+    const currentChatHistoryLimit =
+      this.plugin.getSettings().chatHistoryLimit ??
+      DEFAULT_SETTINGS.chatHistoryLimit;
+    const chatHistorySlider = chatHistorySliderRow.createEl('input', {
+      attr: {
+        type: 'range',
+        min: '0',
+        max: '100',
+        step: '1',
+        value: chatHistorySliderFromLimit(currentChatHistoryLimit).toString(),
+      },
+    });
+    chatHistorySlider.addClass('better-recall-settings__slider');
+
+    const chatHistoryValueDisplay = chatHistorySliderRow.createSpan();
+    chatHistoryValueDisplay.addClass('better-recall-settings__slider-value');
+
+    const updateChatHistoryDisplay = () => {
+      const limit = chatHistoryLimitFromSlider(
+        parseInt(chatHistorySlider.value, 10),
+      );
+      chatHistoryValueDisplay.setText(describeChatHistoryLimit(limit));
+    };
+
+    updateChatHistoryDisplay();
+
+    chatHistorySlider.addEventListener('input', () => {
+      updateChatHistoryDisplay();
+      const limit = chatHistoryLimitFromSlider(
+        parseInt(chatHistorySlider.value, 10),
+      );
+      this.plugin.setChatHistoryLimit(limit);
+      void this.plugin.savePluginData();
+    });
 
     new Setting(this.containerEl)
       .setName('Groq API key (optional fallback)')

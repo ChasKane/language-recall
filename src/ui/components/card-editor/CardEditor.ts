@@ -1,4 +1,4 @@
-import { ButtonComponent, DropdownComponent, Notice, getIcon } from 'obsidian';
+import { ButtonComponent, DropdownComponent, Notice } from 'obsidian';
 import BetterRecallPlugin from 'src/main';
 import {
   CARD_MODAL_DESCRIPTION,
@@ -29,10 +29,7 @@ export interface CardEditorOptions {
 }
 
 export interface CardEditorCallbacks {
-  onCancel: () => void;
   onSubmit: () => void | Promise<void>;
-  onOpenAi?: () => void;
-  hasAiConversation?: boolean;
   onDuplicate?: () => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }
@@ -325,43 +322,15 @@ export class CardEditor {
   private renderAiRow(): void {
     const showReviewSlider =
       this.options.mode === 'edit' && !!this.options.card;
-    const showAiButton = !!this.callbacks.onOpenAi;
 
-    if (!showReviewSlider && !showAiButton) {
+    if (!showReviewSlider) {
       return;
     }
 
     const aiRow = this.containerEl.createDiv(
       'better-recall-card-editor__ai-row',
     );
-
-    if (showReviewSlider) {
-      this.renderReviewDelaySlider(aiRow);
-    }
-
-    if (!showAiButton) {
-      return;
-    }
-
-    const aiButton = new ButtonComponent(aiRow);
-    aiButton.setTooltip(
-      this.callbacks.hasAiConversation
-        ? 'AI assistant (saved conversation)'
-        : 'Open AI assistant',
-    );
-    aiButton.onClick(() => this.callbacks.onOpenAi!());
-    aiButton.buttonEl.addClass('better-recall-card-editor__ai-button');
-    if (this.callbacks.hasAiConversation) {
-      aiButton.buttonEl.addClass('is-active');
-    }
-
-    const aiIcon = getIcon('brain');
-    if (aiIcon) {
-      aiButton.buttonEl.empty();
-      aiButton.buttonEl.appendChild(aiIcon);
-    } else {
-      aiButton.setButtonText('🧠 AI');
-    }
+    this.renderReviewDelaySlider(aiRow);
   }
 
   private renderReviewDelaySlider(row: HTMLElement): void {
@@ -559,8 +528,7 @@ export class CardEditor {
     this.buttonsBarComp = new ButtonsBarComponent(container)
       .setSubmitButtonDisabled(true)
       .setSubmitText(submitText)
-      .setCloseButtonText('Back')
-      .onClose(this.callbacks.onCancel);
+      .hideCloseButton();
 
     const submitButtonInBar =
       this.buttonsBarComp.buttonsBarEl.querySelector('button:last-child');
@@ -571,6 +539,7 @@ export class CardEditor {
     }
 
     if (this.backFieldLabelContainer) {
+      this.buttonsBarComp.buttonsBarEl.addClass('better-recall--display-none');
       const submitButtonComp = new ButtonComponent(
         this.backFieldLabelContainer,
       );

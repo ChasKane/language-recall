@@ -5,6 +5,7 @@ import {
   FollowupRequestOptions,
   FollowupResult,
   formatFollowupError,
+  selectMessagesForContext,
 } from './followup';
 
 export type FallbackProvider = 'groq' | 'openrouter';
@@ -33,6 +34,14 @@ export async function sendFollowupWithFallback(
   } = options;
 
   const errors: string[] = [];
+  const contextMessages = selectMessagesForContext(
+    requestOptions.messages,
+    requestOptions.chatHistoryLimit ?? 2,
+  );
+  const sendOptions = {
+    ...requestOptions,
+    messages: contextMessages,
+  };
 
   if (geminiApiKey.trim()) {
     try {
@@ -40,7 +49,7 @@ export async function sendFollowupWithFallback(
         apiKey: geminiApiKey,
         model: geminiModel,
         signal,
-        ...requestOptions,
+        ...sendOptions,
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -62,7 +71,7 @@ export async function sendFollowupWithFallback(
       return await sendGroqFollowup({
         apiKey: groqApiKey,
         signal,
-        ...requestOptions,
+        ...sendOptions,
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
@@ -83,7 +92,7 @@ export async function sendFollowupWithFallback(
       return await sendOpenRouterFollowup({
         apiKey: openRouterApiKey,
         signal,
-        ...requestOptions,
+        ...sendOptions,
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {

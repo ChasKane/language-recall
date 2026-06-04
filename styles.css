@@ -150,6 +150,18 @@
   margin-bottom: var(--size-2-3);
 }
 
+.better-recall-view-back-row--split {
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--size-2-3);
+}
+
+.better-recall-view-back-row__trailing {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
 .better-recall-view-back-button {
   min-height: var(--input-height);
 }
@@ -1105,13 +1117,19 @@
   display: block;
 }
 
-.better-recall-settings__multiplier-setting .setting-item-info {
+.better-recall-settings__chat-history-setting {
+  display: block;
+}
+
+.better-recall-settings__multiplier-setting .setting-item-info,
+.better-recall-settings__chat-history-setting .setting-item-info {
   margin-right: 0;
   width: 100%;
   margin-bottom: var(--size-2-2);
 }
 
-.better-recall-settings__multiplier-setting .setting-item-control {
+.better-recall-settings__multiplier-setting .setting-item-control,
+.better-recall-settings__chat-history-setting .setting-item-control {
   display: none;
 }
 
@@ -1129,12 +1147,24 @@
   width: 100%;
 }
 
+.better-recall-settings__slider-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.better-recall-settings__slider-end-label:last-child {
+  text-align: right;
+}
+
 .better-recall-settings__slider {
   flex: 1;
 }
 
 .better-recall-settings__slider-value {
-  min-width: 60px;
+  min-width: 9em;
   text-align: right;
   font-weight: 600;
 }

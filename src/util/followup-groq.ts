@@ -57,6 +57,7 @@ export async function sendGroqFollowup(
     messages,
     userMessage,
     mode = 'review',
+    systemPrompt,
     signal,
   } = options;
 
@@ -75,6 +76,7 @@ export async function sendGroqFollowup(
     cardFront,
     cardBack,
     mode,
+    systemPrompt,
   );
 
   const response = await requestUrl({
