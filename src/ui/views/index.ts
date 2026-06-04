@@ -18,8 +18,9 @@ import { Deck } from 'src/data/deck';
 import type { SpacedRepetitionItem } from 'src/spaced-repetition';
 import { FollowupReturnTo, FollowupViewContext } from './FollowupView';
 import { CENTERED_VIEW } from '../classes';
+import { FILE_VIEW_TYPE } from '../constants';
 
-export const FILE_VIEW_TYPE = 'recall-view';
+export { FILE_VIEW_TYPE };
 
 type CapacitorBackListenerHandle = {
   remove?: () => void | Promise<void>;

@@ -107,6 +107,5 @@ Useful scripts:
 
 ```sh
 $ pnpm lint
-$ pnpm test
 $ pnpm build
 ```

@@ -22,10 +22,5 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx"
-  ],
-  "exclude": [
-    "**/*.test.ts",
-    "vitest.config.ts",
-    "src/obsidian.ts"
   ]
 }

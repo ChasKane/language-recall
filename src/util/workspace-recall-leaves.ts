@@ -1,5 +1,4 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import type { DataAdapter } from 'obsidian';
 
 export type WorkspaceJson = Record<string, unknown>;
 
@@ -133,22 +132,27 @@ export function stripPersistedRecallLeavesFromWorkspaceData(
   return true;
 }
 
+function workspaceJsonPath(configDir: string): string {
+  return `${configDir}/workspace.json`;
+}
+
 /**
- * Synchronously edits `.obsidian/workspace.json` before the workspace layout
- * is restored, so orphaned recall tabs do not slow startup.
+ * Edits `.obsidian/workspace.json` so orphaned recall tabs are not restored
+ * on the next launch.
  */
-export function stripPersistedRecallLeavesInWorkspaceFile(
+export async function stripPersistedRecallLeavesInWorkspaceFile(
+  adapter: DataAdapter,
   configDir: string,
   viewType: string,
-): boolean {
-  const filePath = path.join(configDir, 'workspace.json');
-  if (!fs.existsSync(filePath)) {
+): Promise<boolean> {
+  const filePath = workspaceJsonPath(configDir);
+  if (!(await adapter.exists(filePath))) {
     return false;
   }
 
   let data: WorkspaceJson;
   try {
-    data = JSON.parse(fs.readFileSync(filePath, 'utf8')) as WorkspaceJson;
+    data = JSON.parse(await adapter.read(filePath)) as WorkspaceJson;
   } catch {
     return false;
   }
@@ -158,7 +162,7 @@ export function stripPersistedRecallLeavesInWorkspaceFile(
   }
 
   try {
-    fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+    await adapter.write(filePath, `${JSON.stringify(data, null, 2)}\n`);
   } catch {
     return false;
   }

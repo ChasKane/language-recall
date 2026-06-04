@@ -5,7 +5,8 @@ import {
   BetterRecallSettings,
   DEFAULT_SETTINGS,
 } from './settings/data';
-import { FILE_VIEW_TYPE, RecallView } from './ui/views';
+import { FILE_VIEW_TYPE } from './ui/constants';
+import { RecallView } from './ui/views';
 import { DecksManager } from './data/manager/decks-manager';
 import { EventEmitter } from './data/event';
 import { AnkiAlgorithm } from './spaced-repetition/anki';
@@ -24,7 +25,8 @@ export default class BetterRecallPlugin extends Plugin {
   private eventEmitter: EventEmitter;
 
   async onload() {
-    stripPersistedRecallLeavesInWorkspaceFile(
+    await stripPersistedRecallLeavesInWorkspaceFile(
+      this.app.vault.adapter,
       this.app.vault.configDir,
       FILE_VIEW_TYPE,
     );
@@ -54,7 +56,8 @@ export default class BetterRecallPlugin extends Plugin {
   }
 
   onunload() {
-    stripPersistedRecallLeavesInWorkspaceFile(
+    void stripPersistedRecallLeavesInWorkspaceFile(
+      this.app.vault.adapter,
       this.app.vault.configDir,
       FILE_VIEW_TYPE,
     );

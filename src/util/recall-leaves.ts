@@ -1,5 +1,5 @@
 import { Workspace, WorkspaceLeaf } from 'obsidian';
-import { FILE_VIEW_TYPE } from '../ui/views';
+import { FILE_VIEW_TYPE } from '../ui/constants';
 
 export function getRecallLeaves(workspace: Workspace): WorkspaceLeaf[] {
   return workspace.getLeavesOfType(FILE_VIEW_TYPE);
