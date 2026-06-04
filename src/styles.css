@@ -530,21 +530,30 @@
 }
 
 .better-recall-review-card__followup-button {
-  display: inline-flex;
+  cursor: var(--cursor-link);
+  display: flex;
   align-items: center;
   justify-content: center;
   width: var(--input-height);
   min-width: var(--input-height);
   height: var(--input-height);
   padding: 0;
+  border-radius: var(--radius-s);
   border: 1px solid var(--background-modifier-border);
-  color: var(--text-muted);
   background-color: transparent;
+  box-sizing: border-box;
 }
 
 .better-recall-review-card__followup-button .svg-icon {
-  width: var(--icon-size);
-  height: var(--icon-size);
+  display: block;
+  width: var(--icon-m);
+  height: var(--icon-m);
+  color: var(--text-muted);
+}
+
+.better-recall-review-card__followup-button:hover .svg-icon,
+.better-recall-review-card__followup-button.has-conversation .svg-icon {
+  color: var(--interactive-accent);
 }
 
 .better-recall-review-card__flip-side-button:hover,
@@ -556,8 +565,8 @@
   );
 }
 
+.better-recall-card-editor__ai-button:hover,
 .better-recall-review-card__followup-button:hover {
-  color: var(--interactive-accent);
   border-color: var(--interactive-accent);
   background-color: color-mix(
     in srgb,
@@ -566,16 +575,23 @@
   );
 }
 
-.better-recall-review-card__followup-button.is-active {
-  color: var(--text-on-accent);
-  background-color: var(--interactive-accent);
+.better-recall-card-editor__ai-button.has-conversation,
+.better-recall-review-card__followup-button.has-conversation {
   border-color: var(--interactive-accent);
+  background-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 12%,
+    transparent
+  );
 }
 
-.better-recall-review-card__followup-button.is-active:hover {
-  color: var(--text-on-accent);
-  background-color: var(--interactive-accent-hover);
-  border-color: var(--interactive-accent-hover);
+.better-recall-card-editor__ai-button.has-conversation:hover,
+.better-recall-review-card__followup-button.has-conversation:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 20%,
+    transparent
+  );
 }
 
 .better-recall-review-followup {
@@ -1018,23 +1034,30 @@
 }
 
 .better-recall-card-editor__ai-button {
-  min-height: var(--input-height);
+  cursor: var(--cursor-link);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--input-height);
   min-width: var(--input-height);
-  padding: 0 var(--size-2-2);
+  height: var(--input-height);
+  padding: 0;
   border-radius: var(--radius-s);
   border: 1px solid var(--background-modifier-border);
-  background-color: var(--background-primary);
+  background-color: transparent;
+  box-sizing: border-box;
 }
 
 .better-recall-card-editor__ai-button .svg-icon {
+  display: block;
   width: var(--icon-m);
   height: var(--icon-m);
+  color: var(--text-muted);
 }
 
-.better-recall-card-editor__ai-button.is-active {
-  color: var(--text-on-accent);
-  background-color: var(--interactive-accent);
-  border-color: var(--interactive-accent);
+.better-recall-card-editor__ai-button:hover .svg-icon,
+.better-recall-card-editor__ai-button.has-conversation .svg-icon {
+  color: var(--interactive-accent);
 }
 
 .better-recall__cards-list {

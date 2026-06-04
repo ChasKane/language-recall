@@ -15,6 +15,7 @@ import {
   getIcon,
   MarkdownRenderer,
   Notice,
+  setTooltip,
 } from 'obsidian';
 import { formatTimeDifference } from 'src/util';
 import { CardEditProposal, GeminiChatMessage } from 'src/util/gemini';
@@ -37,7 +38,7 @@ export class ReviewView extends RecallSubView {
   private cardBackEl: HTMLElement;
   private editButtonContainerEl: HTMLElement;
   private editButton: ButtonComponent;
-  private followupButton: ButtonComponent;
+  private followupButtonEl: HTMLElement | null = null;
   private flipSideButton: ButtonComponent;
   private showAnswerButton: ButtonComponent;
   private showingBack = false;
@@ -56,7 +57,10 @@ export class ReviewView extends RecallSubView {
   private currentSessionIndex = -1;
   private shuffleModeEnabled = true;
   private readonly answeredItemIds = new Set<string>();
-  private readonly followupConversations = new Map<string, GeminiChatMessage[]>();
+  private readonly followupConversations = new Map<
+    string,
+    GeminiChatMessage[]
+  >();
   private shouldResumeFromFollowup = false;
   private followupResumeWithRecallButtons = false;
   private followupResumeItemId: string | null = null;
@@ -142,7 +146,11 @@ export class ReviewView extends RecallSubView {
       this.plugin.algorithm.replaceItem(card);
     });
 
-    if (this.answerRevealed && this.currentItem && this.answerButtonsBarEl?.isConnected) {
+    if (
+      this.answerRevealed &&
+      this.currentItem &&
+      this.answerButtonsBarEl?.isConnected
+    ) {
       if (this.isCurrentItemAnswered()) {
         this.renderReviewedCardButtons();
       } else {
@@ -200,19 +208,19 @@ export class ReviewView extends RecallSubView {
       'better-recall-review-card__flip-side-button',
     );
     this.flipSideButton.onClick(() => this.toggleCardSide());
-    this.followupButton = new ButtonComponent(cardActionButtonsEl);
-    this.followupButton.buttonEl.addClass(
+    this.followupButtonEl = cardActionButtonsEl.createDiv(
       'better-recall-review-card__followup-button',
     );
-    this.followupButton.setTooltip('Ask AI follow-up');
-    this.followupButton.onClick(() => this.openFollowupChat());
+    this.followupButtonEl.setAttr('role', 'button');
+    this.followupButtonEl.setAttr('tabindex', '0');
+    setTooltip(this.followupButtonEl, 'Ask AI follow-up');
     const followupIcon = getIcon('brain');
     if (followupIcon) {
-      this.followupButton.buttonEl.empty();
-      this.followupButton.buttonEl.appendChild(followupIcon);
+      this.followupButtonEl.appendChild(followupIcon);
     } else {
-      this.followupButton.setButtonText('🧠');
+      this.followupButtonEl.createSpan({ text: '🧠' });
     }
+    this.followupButtonEl.onClickEvent(() => this.openFollowupChat());
     this.editButton = new ButtonComponent(cardActionButtonsEl);
     this.editButton.buttonEl.addClass('better-recall-review-card__edit-button');
     this.editButton.setButtonText('✏️ edit');
@@ -720,12 +728,13 @@ export class ReviewView extends RecallSubView {
   }
 
   private updateFollowupButtonState(): void {
-    if (!this.currentItem || !this.followupButton) {
+    if (!this.currentItem || !this.followupButtonEl) {
       return;
     }
     const hasConversation = this.followupConversations.has(this.currentItem.id);
-    this.followupButton.buttonEl.toggleClass('is-active', hasConversation);
-    this.followupButton.setTooltip(
+    this.followupButtonEl.toggleClass('has-conversation', hasConversation);
+    setTooltip(
+      this.followupButtonEl,
       hasConversation ? 'AI follow-up (saved)' : 'Ask AI follow-up',
     );
   }

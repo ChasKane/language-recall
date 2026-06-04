@@ -331,8 +331,7 @@ export class FollowupChatPanel {
     if (message.cardEditApplied) {
       proposalEl.createSpan({
         cls: 'better-recall-review-followup__edit-applied',
-        text:
-          this.mode === 'draft' ? 'Applied to form' : 'Applied to card',
+        text: this.mode === 'draft' ? 'Applied to form' : 'Applied to card',
       });
       return;
     }
@@ -342,7 +341,9 @@ export class FollowupChatPanel {
     const applyButton = new ButtonComponent(proposalEl)
       .setButtonText(applyLabel)
       .setCta();
-    applyButton.onClick(() => void this.handleApplyCardEdit(message, applyButton));
+    applyButton.onClick(
+      () => void this.handleApplyCardEdit(message, applyButton),
+    );
   }
 
   private renderSaveCardProposal(
@@ -405,10 +406,7 @@ export class FollowupChatPanel {
         this.mode === 'draft' ? 'Applied to form' : 'Applied to card',
       );
       this.persistMessages();
-      new Notice(
-        this.mode === 'draft' ? 'Form updated' : 'Card updated',
-        3000,
-      );
+      new Notice(this.mode === 'draft' ? 'Form updated' : 'Card updated', 3000);
     } catch (error) {
       applyButton.setDisabled(false);
       applyButton.setButtonText(
@@ -520,8 +518,8 @@ export class FollowupChatPanel {
     );
     noticeEl.setText(
       this.mode === 'draft'
-        ? 'Form updated. AI will use the new text.'
-        : 'Card updated. Follow-up will use the new text.',
+        ? 'Form updated. AI will use the new text for all following messages.'
+        : 'Card updated. AI will use the new text for all following messages.',
     );
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }

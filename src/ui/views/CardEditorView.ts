@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ButtonComponent, Notice, getIcon } from 'obsidian';
+import { Notice, getIcon, setTooltip } from 'obsidian';
 import { RecallSubView } from './SubView';
 import BetterRecallPlugin from 'src/main';
 import { RecallView } from '.';
@@ -97,25 +97,25 @@ export class CardEditorView extends RecallSubView {
   }
 
   private renderAiButton(parent: HTMLElement): void {
-    const aiButton = new ButtonComponent(parent);
-    aiButton.setTooltip(
+    const aiButtonEl = parent.createDiv('better-recall-card-editor__ai-button');
+    aiButtonEl.setAttr('role', 'button');
+    aiButtonEl.setAttr('tabindex', '0');
+    if (this.followupMessages.length > 0) {
+      aiButtonEl.addClass('has-conversation');
+    }
+    setTooltip(
+      aiButtonEl,
       this.followupMessages.length > 0
         ? 'AI assistant (saved conversation)'
         : 'Open AI assistant',
     );
-    aiButton.onClick(() => this.openFollowupChat());
-    aiButton.buttonEl.addClass('better-recall-card-editor__ai-button');
-    if (this.followupMessages.length > 0) {
-      aiButton.buttonEl.addClass('is-active');
-    }
-
-    const aiIcon = getIcon('brain');
-    if (aiIcon) {
-      aiButton.buttonEl.empty();
-      aiButton.buttonEl.appendChild(aiIcon);
+    const brainIcon = getIcon('brain');
+    if (brainIcon) {
+      aiButtonEl.appendChild(brainIcon);
     } else {
-      aiButton.setButtonText('🧠 AI');
+      aiButtonEl.createSpan({ text: '🧠' });
     }
+    aiButtonEl.onClickEvent(() => this.openFollowupChat());
   }
 
   private openFollowupChat(): void {
@@ -127,8 +127,9 @@ export class CardEditorView extends RecallSubView {
 
     this.preserveFormStateForFollowup();
 
+    const editingSavedCard = !!this.card;
     this.recallView.openFollowupView({
-      mode: 'draft',
+      mode: editingSavedCard ? 'review' : 'draft',
       returnTo: 'card-editor',
       deck: this.deck,
       card: this.card,
@@ -140,23 +141,55 @@ export class CardEditorView extends RecallSubView {
       onMessagesChange: (messages) => {
         this.followupMessages = messages;
       },
-      onApplyCardEdit: async (edit) => this.applyDraftCardEdit(edit),
-      onSaveCard: async () => {
-        await this.handleSubmit();
-      },
+      onApplyCardEdit: async (edit) => this.applyFollowupCardEdit(edit),
+      onSaveCard: editingSavedCard
+        ? undefined
+        : async () => {
+            await this.handleSubmit();
+          },
     });
   }
 
-  private applyDraftCardEdit(edit: CardEditProposal): Promise<CardEditProposal> {
+  private async applyFollowupCardEdit(
+    edit: CardEditProposal,
+  ): Promise<CardEditProposal> {
+    const deckId =
+      this.preservedFormState?.deckId ??
+      this.cardEditor?.getDeckId() ??
+      this.deck?.id ??
+      this.plugin.getSettings().lastSelectedDeckId;
+
     this.preservedFormState = {
       front: edit.front,
       back: edit.back,
-      deckId:
-        this.preservedFormState?.deckId ??
-        this.cardEditor?.getDeckId() ??
-        this.plugin.getSettings().lastSelectedDeckId,
+      deckId,
     };
-    return Promise.resolve(edit);
+
+    if (this.cardEditor) {
+      this.cardEditor.setFront(edit.front);
+      this.cardEditor.setBack(edit.back);
+    }
+
+    if (this.card && this.deck) {
+      const updatedCard = {
+        ...this.card,
+        content: {
+          front: edit.front,
+          back: edit.back,
+        },
+      };
+      await this.plugin.decksManager.updateCardContent(
+        this.deck.id,
+        updatedCard,
+      );
+      this.deck.cards[updatedCard.id] = updatedCard;
+      this.card = updatedCard;
+      this.plugin
+        .getEventEmitter()
+        .emit('editItem', { deckId: this.deck.id, newItem: updatedCard });
+    }
+
+    return edit;
   }
 
   private async handleSubmit(): Promise<void> {
