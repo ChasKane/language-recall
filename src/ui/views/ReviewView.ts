@@ -686,7 +686,7 @@ export class ReviewView extends RecallSubView {
 
     const apiKey = this.plugin.getSettings().geminiApiKey;
     if (!apiKey.trim()) {
-      new Notice('Add a Gemini API key in Language Recall settings', 5000);
+      new Notice('Add a Gemini API key in language recall settings', 5000);
       return;
     }
 

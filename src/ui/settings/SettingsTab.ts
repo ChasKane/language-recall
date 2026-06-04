@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- settings descriptions use API and product names */
 import {
   Setting,
   PluginSettingTab,
@@ -150,7 +151,7 @@ export class SettingsTab extends PluginSettingTab {
     new Setting(this.containerEl)
       .setName('System prompt')
       .setDesc(
-        'Optional instructions sent with every AI chat request (Gemini, Groq, and OpenRouter). Use this for your target language, proficiency level, preferred explanation style, or other standing context. Your text is prepended to the plugin\'s built-in prompt for the current card.',
+        "Optional instructions sent with every AI chat request (Gemini, Groq, and OpenRouter). Use this for your target language, proficiency level, preferred explanation style, or other standing context. Your text is prepended to the plugin's built-in prompt for the current card.",
       )
       .addTextArea((text) => {
         text

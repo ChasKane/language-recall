@@ -81,8 +81,9 @@ export const SAVE_CARD_OPENAI_TOOL = {
 };
 
 export function getFollowupOpenAiTools(mode: FollowupMode = 'review') {
-  const tools: Array<typeof CARD_EDIT_OPENAI_TOOL | typeof SAVE_CARD_OPENAI_TOOL> =
-    [CARD_EDIT_OPENAI_TOOL];
+  const tools: Array<
+    typeof CARD_EDIT_OPENAI_TOOL | typeof SAVE_CARD_OPENAI_TOOL
+  > = [CARD_EDIT_OPENAI_TOOL];
   if (mode === 'draft') {
     tools.push(SAVE_CARD_OPENAI_TOOL);
   }
@@ -283,8 +284,7 @@ export function parseOpenAiToolFollowupResponse(message: {
       cardEdit = proposal;
     }
 
-    const summary =
-      typeof args.summary === 'string' ? args.summary.trim() : '';
+    const summary = typeof args.summary === 'string' ? args.summary.trim() : '';
     if (summary && !displayText) {
       displayText = summary;
     }

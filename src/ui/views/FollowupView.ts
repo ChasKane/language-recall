@@ -73,7 +73,9 @@ export class FollowupView extends RecallSubView {
     this.rootEl = this.recallView.rootEl.createDiv(
       'better-recall-followup-view',
     );
-    this.renderBackButton(this.rootEl, () => this.recallView.goBackFromFollowup());
+    this.renderBackButton(this.rootEl, () =>
+      this.recallView.goBackFromFollowup(),
+    );
 
     if (!this.context || !this.chatPanel) {
       this.rootEl.createEl('p', {
@@ -82,7 +84,9 @@ export class FollowupView extends RecallSubView {
       return;
     }
 
-    const headerEl = this.rootEl.createDiv('better-recall-followup-view__header');
+    const headerEl = this.rootEl.createDiv(
+      'better-recall-followup-view__header',
+    );
     headerEl.createSpan({
       cls: 'better-recall-followup-view__title',
       text:

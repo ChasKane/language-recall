@@ -46,11 +46,9 @@ export class FallbackApiKeyModal extends Modal {
       .setName('API key')
       .setDesc(`Get a key at ${copy.url}`)
       .addText((text) => {
-        text
-          .setPlaceholder(copy.placeholder)
-          .onChange((value) => {
-            this.apiKey = value.trim();
-          });
+        text.setPlaceholder(copy.placeholder).onChange((value) => {
+          this.apiKey = value.trim();
+        });
         text.inputEl.type = 'password';
         text.inputEl.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') {
@@ -66,7 +64,10 @@ export class FallbackApiKeyModal extends Modal {
 
     new Setting(buttonRow)
       .addButton((button) => {
-        button.setButtonText('Continue').setCta().onClick(() => this.submit());
+        button
+          .setButtonText('Continue')
+          .setCta()
+          .onClick(() => this.submit());
       })
       .addButton((button) => {
         button.setButtonText('Skip').onClick(() => this.cancel());

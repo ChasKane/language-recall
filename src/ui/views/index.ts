@@ -1,9 +1,4 @@
-import {
-  FileView,
-  Notice,
-  ViewStateResult,
-  WorkspaceLeaf,
-} from 'obsidian';
+import { FileView, Notice, ViewStateResult, WorkspaceLeaf } from 'obsidian';
 import BetterRecallPlugin from '../../main';
 import { EmptyView } from './EmptyView';
 import { ReviewView } from './ReviewView';
@@ -319,9 +314,7 @@ export class RecallView extends FileView {
     this.renderView();
 
     this.plugin.getEventEmitter().on('addDeck', this.handleAddDeckHandler);
-    this.plugin
-      .getEventEmitter()
-      .on('decksLoaded', this.handleDecksLoaded);
+    this.plugin.getEventEmitter().on('decksLoaded', this.handleDecksLoaded);
     this.registerDomEvent(window, 'keydown', this.handleBackKeydown, {
       capture: true,
     });
@@ -513,9 +506,7 @@ export class RecallView extends FileView {
     this.teardownCapacitorBackListener();
     this.currentView?.onClose();
     this.plugin.getEventEmitter().off('addDeck', this.handleAddDeckHandler);
-    this.plugin
-      .getEventEmitter()
-      .off('decksLoaded', this.handleDecksLoaded);
+    this.plugin.getEventEmitter().off('decksLoaded', this.handleDecksLoaded);
     await super.onClose();
   }
 

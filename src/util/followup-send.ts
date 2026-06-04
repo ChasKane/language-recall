@@ -83,8 +83,7 @@ export async function sendFollowupWithFallback(
 
   let openRouterApiKey = initialOpenRouterApiKey.trim();
   if (!openRouterApiKey && promptFallbackKey) {
-    openRouterApiKey =
-      (await promptFallbackKey('openrouter'))?.trim() ?? '';
+    openRouterApiKey = (await promptFallbackKey('openrouter'))?.trim() ?? '';
   }
 
   if (openRouterApiKey) {

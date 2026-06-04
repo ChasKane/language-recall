@@ -16,6 +16,7 @@ export function getPreferredRecallLeaf(
     return null;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- activeLeaf is still the practical way to detect the focused recall pane
   const activeLeaf = workspace.activeLeaf;
   if (activeLeaf && leaves.includes(activeLeaf)) {
     return activeLeaf;

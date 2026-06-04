@@ -188,8 +188,7 @@ export function buildGeminiContents(
   messages: FollowupChatMessage[],
   userMessage: string,
 ): Array<{ role: string; parts: Array<{ text: string }> }> {
-  const contents: Array<{ role: string; parts: Array<{ text: string }> }> =
-    [];
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
   for (const message of messages) {
     contents.push({

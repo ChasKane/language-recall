@@ -221,9 +221,7 @@ export class CardEditor {
       this.backInputComp.getValue().length === 0;
 
     const disabled =
-      this.options.mode === 'edit'
-        ? empty || !this.hasUnsavedChanges()
-        : empty;
+      this.options.mode === 'edit' ? empty || !this.hasUnsavedChanges() : empty;
 
     this.buttonsBarComp.setSubmitButtonDisabled(disabled);
   }

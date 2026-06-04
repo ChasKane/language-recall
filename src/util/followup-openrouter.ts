@@ -41,7 +41,9 @@ function parseOpenRouterError(
     return `OpenRouter request failed with status ${status ?? 'unknown'}`;
   }
 
-  const message = (data as OpenRouterChatCompletionResponse).error?.message?.trim();
+  const message = (
+    data as OpenRouterChatCompletionResponse
+  ).error?.message?.trim();
   if (message) {
     return message;
   }
