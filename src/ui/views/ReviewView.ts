@@ -484,9 +484,16 @@ export class ReviewView extends RecallSubView {
 
   private renderReviewedCardButtons(): void {
     this.clearButtonsBar();
-    new ButtonComponent(this.answerButtonsBarEl)
+    const reviewedButtonsEl = this.answerButtonsBarEl.createDiv(
+      'better-recall-review-card__reviewed-buttons',
+    );
+    new ButtonComponent(reviewedButtonsEl)
       .setButtonText('Reviewed')
       .setDisabled(true);
+    new ButtonComponent(reviewedButtonsEl)
+      .setButtonText('Go to next card')
+      .setCta()
+      .onClick(() => this.showNextItem());
   }
 
   private renderButton(

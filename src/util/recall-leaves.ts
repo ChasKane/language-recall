@@ -44,24 +44,33 @@ export function pruneDuplicateRecallLeaves(workspace: Workspace): void {
 }
 
 /**
+ * Closes every recall leaf, including tabs restored from workspace.json at startup.
+ */
+export function detachAllRecallLeaves(workspace: Workspace): void {
+  workspace.detachLeavesOfType(FILE_VIEW_TYPE);
+}
+
+/**
  * Focuses an existing recall leaf or opens recall in the current pane.
  * Never splits the workspace to avoid accumulating hidden tabs.
  */
-export function activateRecallLeaf(
+export async function activateRecallLeaf(
   workspace: Workspace,
   focus = true,
-): WorkspaceLeaf {
+): Promise<WorkspaceLeaf> {
   const existing = getPreferredRecallLeaf(workspace);
   if (existing) {
+    await workspace.revealLeaf(existing);
     workspace.setActiveLeaf(existing, { focus });
     return existing;
   }
 
   const leaf = workspace.getLeaf(false);
-  void leaf.setViewState({
+  await leaf.setViewState({
     type: FILE_VIEW_TYPE,
     state: {},
   });
+  await workspace.revealLeaf(leaf);
   workspace.setActiveLeaf(leaf, { focus });
   return leaf;
 }

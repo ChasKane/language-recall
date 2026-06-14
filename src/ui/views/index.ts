@@ -62,14 +62,14 @@ export class RecallView extends FileView {
   }
 
   private currentView?: RecallSubView;
-  private emptyView: EmptyView;
-  private reviewView: ReviewView;
-  private followupView: FollowupView;
-  private decksView: DecksView;
-  private cardsView: CardsView;
-  private cardEditorView: CardEditorView;
-  private createDeckView: CreateDeckView;
-  private editDeckView: EditDeckView;
+  private _emptyView?: EmptyView;
+  private _reviewView?: ReviewView;
+  private _followupView?: FollowupView;
+  private _decksView?: DecksView;
+  private _cardsView?: CardsView;
+  private _cardEditorView?: CardEditorView;
+  private _createDeckView?: CreateDeckView;
+  private _editDeckView?: EditDeckView;
 
   private viewMode: ViewMode;
   private cardEditorReturnTo: 'decks' | 'review' | { deck: Deck } = 'decks';
@@ -92,17 +92,47 @@ export class RecallView extends FileView {
     super(leaf);
     this.allowNoFile = true;
     this.icon = 'blocks';
+    this.viewMode = ViewMode.Decks;
+  }
 
-    this.reviewView = new ReviewView(plugin, this);
-    this.followupView = new FollowupView(plugin, this);
-    this.emptyView = new EmptyView(plugin, this);
-    this.decksView = new DecksView(plugin, this);
-    this.cardsView = new CardsView(plugin, this);
-    this.cardEditorView = new CardEditorView(plugin, this);
-    this.createDeckView = new CreateDeckView(plugin, this);
-    this.editDeckView = new EditDeckView(plugin, this);
+  private get emptyView(): EmptyView {
+    this._emptyView ??= new EmptyView(this.plugin, this);
+    return this._emptyView;
+  }
 
-    this.setViewMode(ViewMode.Decks);
+  private get reviewView(): ReviewView {
+    this._reviewView ??= new ReviewView(this.plugin, this);
+    return this._reviewView;
+  }
+
+  private get followupView(): FollowupView {
+    this._followupView ??= new FollowupView(this.plugin, this);
+    return this._followupView;
+  }
+
+  private get decksView(): DecksView {
+    this._decksView ??= new DecksView(this.plugin, this);
+    return this._decksView;
+  }
+
+  private get cardsView(): CardsView {
+    this._cardsView ??= new CardsView(this.plugin, this);
+    return this._cardsView;
+  }
+
+  private get cardEditorView(): CardEditorView {
+    this._cardEditorView ??= new CardEditorView(this.plugin, this);
+    return this._cardEditorView;
+  }
+
+  private get createDeckView(): CreateDeckView {
+    this._createDeckView ??= new CreateDeckView(this.plugin, this);
+    return this._createDeckView;
+  }
+
+  private get editDeckView(): EditDeckView {
+    this._editDeckView ??= new EditDeckView(this.plugin, this);
+    return this._editDeckView;
   }
 
   private syncViewModeAfterDecksLoaded(): void {
@@ -311,6 +341,9 @@ export class RecallView extends FileView {
 
   protected async onOpen(): Promise<void> {
     await super.onOpen();
+    if (!this.currentView) {
+      this.setViewMode(this.viewMode);
+    }
     this.renderView();
 
     this.plugin.getEventEmitter().on('addDeck', this.handleAddDeckHandler);

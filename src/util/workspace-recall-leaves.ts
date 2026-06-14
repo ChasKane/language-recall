@@ -114,6 +114,26 @@ function fixActiveLeafId(data: WorkspaceJson, removedIds: string[]): void {
   }
 }
 
+/** Removes tab containers left empty after stripping recall leaves. */
+function removeEmptyTabsContainers(node: WorkspaceTreeNode): void {
+  if (!Array.isArray(node.children)) {
+    return;
+  }
+  for (const child of node.children) {
+    removeEmptyTabsContainers(child);
+  }
+  for (let i = node.children.length - 1; i >= 0; i--) {
+    const child = node.children[i];
+    if (child.type === 'tabs' && (!child.children || child.children.length === 0)) {
+      node.children.splice(i, 1);
+    }
+  }
+}
+
+function workspaceJsonPath(configDir: string): string {
+  return `${configDir}/workspace.json`;
+}
+
 /**
  * Removes every persisted recall-view leaf from workspace.json data.
  * Obsidian will not restore those tabs on the next launch.
@@ -129,18 +149,16 @@ export function stripPersistedRecallLeavesFromWorkspaceData(
 
   const removedIds = removeRecallLeafRefs(refs);
   fixActiveLeafId(data, removedIds);
+  for (const root of getWorkspaceRoots(data)) {
+    removeEmptyTabsContainers(root);
+  }
   return true;
 }
 
-function workspaceJsonPath(configDir: string): string {
-  return `${configDir}/workspace.json`;
-}
-
 /**
- * Edits `.obsidian/workspace.json` so orphaned recall tabs are not restored
- * on the next launch.
+ * Edits workspace.json via the vault adapter (works on desktop and mobile).
  */
-export async function stripPersistedRecallLeavesInWorkspaceFile(
+export async function stripPersistedRecallLeavesWithAdapter(
   adapter: DataAdapter,
   configDir: string,
   viewType: string,
@@ -168,4 +186,42 @@ export async function stripPersistedRecallLeavesInWorkspaceFile(
   }
 
   return true;
+}
+
+/**
+ * Desktop-only synchronous strip using Node fs, before workspace restore.
+ * No-op on mobile where Node builtins are unavailable.
+ */
+export function stripPersistedRecallLeavesInWorkspaceFile(
+  configDir: string,
+  viewType: string,
+): boolean {
+  try {
+    // Dynamic require: fs/path are not available in Obsidian mobile.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('fs') as typeof import('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('path') as typeof import('path');
+
+    const filePath = path.join(configDir, 'workspace.json');
+    if (!fs.existsSync(filePath)) {
+      return false;
+    }
+
+    let data: WorkspaceJson;
+    try {
+      data = JSON.parse(fs.readFileSync(filePath, 'utf8')) as WorkspaceJson;
+    } catch {
+      return false;
+    }
+
+    if (!stripPersistedRecallLeavesFromWorkspaceData(data, viewType)) {
+      return false;
+    }
+
+    fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
 }

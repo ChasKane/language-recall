@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian';
+import { Platform, Plugin } from 'obsidian';
 import { registerCommands } from './commands';
 import {
   BetterRecallData,
@@ -13,9 +13,13 @@ import { AnkiAlgorithm } from './spaced-repetition/anki';
 import { SettingsTab } from './ui/settings/SettingsTab';
 import {
   activateRecallLeaf,
+  detachAllRecallLeaves,
   pruneDuplicateRecallLeaves,
 } from './util/recall-leaves';
-import { stripPersistedRecallLeavesInWorkspaceFile } from './util/workspace-recall-leaves';
+import {
+  stripPersistedRecallLeavesInWorkspaceFile,
+  stripPersistedRecallLeavesWithAdapter,
+} from './util/workspace-recall-leaves';
 
 export default class BetterRecallPlugin extends Plugin {
   public readonly algorithm = new AnkiAlgorithm();
@@ -24,12 +28,14 @@ export default class BetterRecallPlugin extends Plugin {
   private data: BetterRecallData;
   private eventEmitter: EventEmitter;
 
+  /** Plugin entry: register views/commands only; heavy work runs after layout is ready. */
   async onload() {
-    await stripPersistedRecallLeavesInWorkspaceFile(
-      this.app.vault.adapter,
-      this.app.vault.configDir,
-      FILE_VIEW_TYPE,
-    );
+    if (!Platform.isMobileApp) {
+      stripPersistedRecallLeavesInWorkspaceFile(
+        this.app.vault.configDir,
+        FILE_VIEW_TYPE,
+      );
+    }
 
     this.eventEmitter = new EventEmitter();
 
@@ -37,6 +43,7 @@ export default class BetterRecallPlugin extends Plugin {
     this.algorithm.setParameters(this.getSettings().intervalMultiplier);
 
     this.registerView(FILE_VIEW_TYPE, (leaf) => new RecallView(this, leaf));
+    detachAllRecallLeaves(this.app.workspace);
     registerCommands(this);
 
     this.addRibbonIcon('wallet-cards', 'Open decks', () => {
@@ -47,7 +54,13 @@ export default class BetterRecallPlugin extends Plugin {
 
     void this.whenWorkspaceReady()
       .then(() => {
+        detachAllRecallLeaves(this.app.workspace);
         pruneDuplicateRecallLeaves(this.app.workspace);
+        return stripPersistedRecallLeavesWithAdapter(
+          this.app.vault.adapter,
+          this.app.vault.configDir,
+          FILE_VIEW_TYPE,
+        );
       })
       .then(() => this.decksManager.load())
       .then(() => {
@@ -56,7 +69,15 @@ export default class BetterRecallPlugin extends Plugin {
   }
 
   onunload() {
-    void stripPersistedRecallLeavesInWorkspaceFile(
+    detachAllRecallLeaves(this.app.workspace);
+    if (!Platform.isMobileApp) {
+      stripPersistedRecallLeavesInWorkspaceFile(
+        this.app.vault.configDir,
+        FILE_VIEW_TYPE,
+      );
+      return;
+    }
+    void stripPersistedRecallLeavesWithAdapter(
       this.app.vault.adapter,
       this.app.vault.configDir,
       FILE_VIEW_TYPE,
@@ -67,17 +88,16 @@ export default class BetterRecallPlugin extends Plugin {
    * Opens the recall view of the plugin which displays all possible decks.
    */
   public openRecallView(): void {
-    activateRecallLeaf(this.app.workspace);
+    void activateRecallLeaf(this.app.workspace);
   }
 
   /**
    * Opens the recall view and navigates to the add-card editor (for the "Add card" command).
    */
-  public openRecallViewAndAddCard(): void {
-    const leaf = activateRecallLeaf(this.app.workspace);
-    const view = leaf.view;
-    if (view?.getViewType?.() === FILE_VIEW_TYPE) {
-      (view as RecallView).openCardEditorView();
+  public async openRecallViewAndAddCard(): Promise<void> {
+    const leaf = await activateRecallLeaf(this.app.workspace);
+    if (leaf.view instanceof RecallView) {
+      leaf.view.openCardEditorView();
     }
   }
 

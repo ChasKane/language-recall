@@ -960,6 +960,24 @@
   font-size: var(--font-ui-large);
 }
 
+.better-recall-review-card__answer-buttons-bar
+  .better-recall-review-card__reviewed-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-3);
+}
+
+.better-recall-review-card__answer-buttons-bar
+  .better-recall-review-card__reviewed-buttons
+  button {
+  display: inline-flex;
+  flex-direction: row;
+  height: var(--input-height);
+  min-width: unset;
+  max-width: unset;
+  padding: 0 var(--size-4-2);
+}
+
 /* Cards view: fill pane and let the list take remaining height */
 .better-recall-cards-view {
   position: absolute;
