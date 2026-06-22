@@ -19,6 +19,7 @@ export const DECK_MAIN = 'better-recall-deck';
 export const DECK_TABLE = 'better-recall-deck-table';
 export const DECK_NAME = 'better-recall-deck-name';
 export const DECK_BUTTON = 'better-recall-deck__button';
+export const ICON_BUTTON = 'better-recall-icon-button';
 
 // Description
 export const P_DESCRIPTION = 'better-recall-description';

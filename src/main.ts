@@ -27,6 +27,7 @@ export default class BetterRecallPlugin extends Plugin {
 
   private data: BetterRecallData;
   private eventEmitter: EventEmitter;
+  private settingsTab: SettingsTab | null = null;
 
   /** Plugin entry: register views/commands only; heavy work runs after layout is ready. */
   async onload() {
@@ -50,7 +51,22 @@ export default class BetterRecallPlugin extends Plugin {
       this.openRecallView();
     });
 
-    this.addSettingTab(new SettingsTab(this));
+    this.settingsTab = new SettingsTab(this);
+    this.addSettingTab(this.settingsTab);
+
+    const dataFilePath = this.getDataFilePath();
+    const onDataFileChanged = (): void => {
+      void this.reloadPluginData().then(() => {
+        this.settingsTab?.refreshIfVisible();
+      });
+    };
+    this.registerEvent(
+      this.app.vault.on('modify', (file) => {
+        if (file.path === dataFilePath) {
+          onDataFileChanged();
+        }
+      }),
+    );
 
     void this.whenWorkspaceReady()
       .then(() => {
@@ -108,11 +124,52 @@ export default class BetterRecallPlugin extends Plugin {
    * Finally, it populates the `data` property with this loaded data.
    * @returns Promise that resolves when the settings have been loaded and initialized.
    */
+  private getDataFilePath(): string {
+    return `${this.manifest.dir}/data.json`;
+  }
+
+  private async readPluginDataFromDisk(): Promise<Partial<BetterRecallData> | null> {
+    const path = this.getDataFilePath();
+    try {
+      if (!(await this.app.vault.adapter.exists(path))) {
+        return null;
+      }
+      const raw = await this.app.vault.adapter.read(path);
+      return JSON.parse(raw) as Partial<BetterRecallData>;
+    } catch (error) {
+      console.warn(
+        'Language Recall: could not read data.json from disk, using loadData()',
+        error,
+      );
+      return (await this.loadData()) as Partial<BetterRecallData> | null;
+    }
+  }
+
   private async loadPluginData(): Promise<void> {
-    const loaded = (await this.loadData()) as Partial<BetterRecallData> | null;
+    const loaded = await this.readPluginDataFromDisk();
     this.data = {
       settings: { ...DEFAULT_SETTINGS, ...(loaded?.settings ?? {}) },
     };
+  }
+
+  /** Re-read data.json — needed when sync updates the file after plugin load. */
+  public async reloadPluginData(): Promise<void> {
+    await this.loadPluginData();
+    this.algorithm.setParameters(this.getSettings().intervalMultiplier);
+  }
+
+  /** Apply data.json from disk only when it differs from in-memory settings. */
+  public async syncFromDiskIfChanged(): Promise<boolean> {
+    const loaded = await this.readPluginDataFromDisk();
+    const diskData: BetterRecallData = {
+      settings: { ...DEFAULT_SETTINGS, ...(loaded?.settings ?? {}) },
+    };
+    if (JSON.stringify(diskData) === JSON.stringify(this.data)) {
+      return false;
+    }
+    this.data = diskData;
+    this.algorithm.setParameters(this.getSettings().intervalMultiplier);
+    return true;
   }
 
   /**

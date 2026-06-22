@@ -181,8 +181,10 @@
 }
 
 .better-recall-settings-button .svg-icon {
-  width: var(--icon-size);
-  height: var(--icon-size);
+  display: block;
+  width: var(--size-4-4);
+  height: var(--size-4-4);
+  color: var(--text-muted);
 }
 
 .better-recall-centered-view {
@@ -441,6 +443,60 @@
   opacity: 1;
 }
 
+.better-recall-icon-button {
+  cursor: var(--cursor-link);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--size-2-2);
+  min-width: calc(var(--size-4-4) + var(--size-2-2) * 2);
+  min-height: calc(var(--size-4-4) + var(--size-2-2) * 2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: transparent;
+  box-sizing: border-box;
+}
+
+.better-recall-icon-button .svg-icon {
+  cursor: var(--cursor-link);
+  display: block;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.85;
+  width: var(--size-4-4);
+  height: var(--size-4-4);
+}
+
+.better-recall-icon-button:hover .svg-icon {
+  color: var(--interactive-accent);
+  opacity: 1;
+}
+
+.better-recall-icon-button.has-conversation,
+.better-recall-icon-button.is-active {
+  border-color: var(--interactive-accent);
+  background-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 12%,
+    transparent
+  );
+}
+
+.better-recall-icon-button.has-conversation .svg-icon,
+.better-recall-icon-button.is-active .svg-icon {
+  color: var(--interactive-accent);
+  opacity: 1;
+}
+
+.better-recall-icon-button.has-conversation:hover,
+.better-recall-icon-button.is-active:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 20%,
+    transparent
+  );
+}
+
 .better-recall-deck__start-review {
   font-size: var(--font-ui-small);
   padding: var(--size-2-2) var(--size-4-3);
@@ -530,30 +586,10 @@
 }
 
 .better-recall-review-card__followup-button {
-  cursor: var(--cursor-link);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: var(--input-height);
   min-width: var(--input-height);
   height: var(--input-height);
   padding: 0;
-  border-radius: var(--radius-s);
-  border: 1px solid var(--background-modifier-border);
-  background-color: transparent;
-  box-sizing: border-box;
-}
-
-.better-recall-review-card__followup-button .svg-icon {
-  display: block;
-  width: var(--icon-m);
-  height: var(--icon-m);
-  color: var(--text-muted);
-}
-
-.better-recall-review-card__followup-button:hover .svg-icon,
-.better-recall-review-card__followup-button.has-conversation .svg-icon {
-  color: var(--interactive-accent);
 }
 
 .better-recall-review-card__flip-side-button:hover,
@@ -561,35 +597,6 @@
   background-color: color-mix(
     in srgb,
     var(--interactive-accent) 12%,
-    transparent
-  );
-}
-
-.better-recall-card-editor__ai-button:hover,
-.better-recall-review-card__followup-button:hover {
-  border-color: var(--interactive-accent);
-  background-color: color-mix(
-    in srgb,
-    var(--interactive-accent) 12%,
-    transparent
-  );
-}
-
-.better-recall-card-editor__ai-button.has-conversation,
-.better-recall-review-card__followup-button.has-conversation {
-  border-color: var(--interactive-accent);
-  background-color: color-mix(
-    in srgb,
-    var(--interactive-accent) 12%,
-    transparent
-  );
-}
-
-.better-recall-card-editor__ai-button.has-conversation:hover,
-.better-recall-review-card__followup-button.has-conversation:hover {
-  background-color: color-mix(
-    in srgb,
-    var(--interactive-accent) 20%,
     transparent
   );
 }
@@ -780,6 +787,26 @@
   overflow: hidden;
 }
 
+.better-recall-followup-view--card-minimized {
+  overflow: hidden;
+}
+
+.better-recall-followup-view--card-minimized
+  .better-recall-followup-view__card-preview {
+  display: none;
+}
+
+.better-recall-followup-view--card-minimized .better-recall-followup-view__chat {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.better-recall-followup-view--card-minimized
+  .better-recall-review-followup__messages {
+  max-height: none;
+}
+
 .better-recall-followup-view--input-focused .better-recall-followup-view__card-preview,
 .better-recall-followup-view--input-focused .better-recall-followup-view__header {
   display: none;
@@ -827,6 +854,7 @@
 }
 
 .better-recall-followup-view__card-preview {
+  position: relative;
   flex-shrink: 0;
   width: 100%;
   max-width: 38rem;
@@ -839,6 +867,18 @@
   flex-direction: row;
   align-items: stretch;
   overflow: hidden;
+}
+
+.better-recall-followup-view__minimize-button {
+  position: absolute;
+  top: var(--size-2-2);
+  right: var(--size-2-2);
+  z-index: 1;
+  width: var(--input-height);
+  min-width: var(--input-height);
+  height: var(--input-height);
+  min-height: var(--input-height);
+  padding: 0;
 }
 
 .better-recall-followup-view__card-preview
@@ -859,6 +899,7 @@
 }
 
 .better-recall-followup-view__chat {
+  position: relative;
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -869,6 +910,18 @@
   overflow: hidden;
   padding: var(--size-4-3);
   cursor: auto;
+}
+
+.better-recall-followup-view__restore-card-button {
+  position: absolute;
+  top: var(--size-2-2);
+  right: var(--size-2-2);
+  z-index: 1;
+  width: var(--input-height);
+  min-width: var(--input-height);
+  height: var(--input-height);
+  min-height: var(--input-height);
+  padding: 0;
 }
 
 .better-recall-followup-view__chat .better-recall-review-followup {
@@ -922,9 +975,12 @@
   justify-content: center;
 }
 
-.better-recall-review-card__navigation .svg-icon {
-  width: var(--icon-size);
-  height: var(--icon-size);
+.better-recall-review-card__navigation .better-recall-icon-button {
+  width: var(--input-height);
+  min-width: var(--input-height);
+  height: var(--input-height);
+  min-height: var(--input-height);
+  padding: 0;
 }
 
 .better-recall-review-card__shuffle-button.is-active {
@@ -1052,30 +1108,11 @@
 }
 
 .better-recall-card-editor__ai-button {
-  cursor: var(--cursor-link);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: var(--input-height);
   min-width: var(--input-height);
   height: var(--input-height);
+  min-height: var(--input-height);
   padding: 0;
-  border-radius: var(--radius-s);
-  border: 1px solid var(--background-modifier-border);
-  background-color: transparent;
-  box-sizing: border-box;
-}
-
-.better-recall-card-editor__ai-button .svg-icon {
-  display: block;
-  width: var(--icon-m);
-  height: var(--icon-m);
-  color: var(--text-muted);
-}
-
-.better-recall-card-editor__ai-button:hover .svg-icon,
-.better-recall-card-editor__ai-button.has-conversation .svg-icon {
-  color: var(--interactive-accent);
 }
 
 .better-recall__cards-list {
@@ -1237,4 +1274,9 @@
   font-style: italic;
   margin-top: var(--size-2-1);
   margin-bottom: var(--size-4-3);
+}
+
+.better-recall-settings__note {
+  color: var(--text-muted);
+  margin-top: var(--size-2-2);
 }

@@ -12,13 +12,13 @@ import {
 import {
   ButtonComponent,
   Component,
-  getIcon,
   MarkdownRenderer,
   Notice,
   setTooltip,
 } from 'obsidian';
 import { formatTimeDifference } from 'src/util';
 import { CardEditProposal, GeminiChatMessage } from 'src/util/gemini';
+import { createIconButton } from '../components/createIconButton';
 
 enum ReviewState {
   ONGOING,
@@ -45,7 +45,7 @@ export class ReviewView extends RecallSubView {
   private remainingCountEl: HTMLElement;
   private previousCardButton: ButtonComponent;
   private nextCardButton: ButtonComponent;
-  private randomizeButton: ButtonComponent;
+  private randomizeButtonEl: HTMLElement | null = null;
 
   private currentItem: SpacedRepetitionItem | null = null;
   private deck: Deck;
@@ -208,19 +208,13 @@ export class ReviewView extends RecallSubView {
       'better-recall-review-card__flip-side-button',
     );
     this.flipSideButton.onClick(() => this.toggleCardSide());
-    this.followupButtonEl = cardActionButtonsEl.createDiv(
-      'better-recall-review-card__followup-button',
-    );
-    this.followupButtonEl.setAttr('role', 'button');
-    this.followupButtonEl.setAttr('tabindex', '0');
-    setTooltip(this.followupButtonEl, 'Ask AI follow-up');
-    const followupIcon = getIcon('brain');
-    if (followupIcon) {
-      this.followupButtonEl.appendChild(followupIcon);
-    } else {
-      this.followupButtonEl.createSpan({ text: '🧠' });
-    }
-    this.followupButtonEl.onClickEvent(() => this.openFollowupChat());
+    this.followupButtonEl = createIconButton(cardActionButtonsEl, {
+      cls: 'better-recall-review-card__followup-button',
+      icon: 'brain',
+      fallback: '🧠',
+      tooltip: 'Ask AI follow-up',
+      onClick: () => this.openFollowupChat(),
+    });
     this.editButton = new ButtonComponent(cardActionButtonsEl);
     this.editButton.buttonEl.addClass('better-recall-review-card__edit-button');
     this.editButton.setButtonText('✏️ edit');
@@ -428,18 +422,13 @@ export class ReviewView extends RecallSubView {
       .setButtonText('←')
       .setTooltip('Previous card')
       .onClick(() => this.showPreviousItem());
-    this.randomizeButton = new ButtonComponent(navigationEl)
-      .setTooltip('Shuffle mode')
-      .onClick(() => this.toggleShuffleMode());
-    const shuffleIcon = getIcon('shuffle');
-    if (shuffleIcon) {
-      this.randomizeButton.buttonEl.appendChild(shuffleIcon);
-    } else {
-      this.randomizeButton.setButtonText('Shuffle');
-    }
-    this.randomizeButton.buttonEl.addClass(
-      'better-recall-review-card__shuffle-button',
-    );
+    this.randomizeButtonEl = createIconButton(navigationEl, {
+      cls: 'better-recall-review-card__shuffle-button',
+      icon: 'shuffle',
+      fallback: '⇄',
+      tooltip: 'Shuffle mode',
+      onClick: () => this.toggleShuffleMode(),
+    });
     this.nextCardButton = new ButtonComponent(navigationEl)
       .setButtonText('→')
       .setTooltip('Next viewed card')
@@ -633,11 +622,8 @@ export class ReviewView extends RecallSubView {
     this.nextCardButton.setDisabled(
       this.currentSessionIndex >= this.sessionItems.length - 1,
     );
-    this.randomizeButton.buttonEl.toggleClass(
-      'is-active',
-      this.shuffleModeEnabled,
-    );
-    this.randomizeButton.buttonEl.setAttr(
+    this.randomizeButtonEl?.toggleClass('is-active', this.shuffleModeEnabled);
+    this.randomizeButtonEl?.setAttr(
       'aria-pressed',
       String(this.shuffleModeEnabled),
     );

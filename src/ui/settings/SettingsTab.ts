@@ -13,14 +13,81 @@ import {
   describeChatHistoryLimit,
 } from 'src/util/followup';
 
+const DISK_SYNC_POLL_MS = 2000;
+
 export class SettingsTab extends PluginSettingTab {
+  private isVisible = false;
+  private renderGeneration = 0;
+  private diskPollTimer: number | null = null;
+
   constructor(private plugin: BetterRecallPlugin) {
     super(plugin.app, plugin);
   }
 
-  display() {
-    this.containerEl.empty();
+  display(): void {
+    this.isVisible = true;
+    void this.reloadAndRender();
+    this.startDiskPoll();
+  }
 
+  hide(): void {
+    this.isVisible = false;
+    this.stopDiskPoll();
+  }
+
+  /** Re-render when data.json changes while this tab is open (e.g. vault sync). */
+  refreshIfVisible(): void {
+    if (this.isVisible) {
+      void this.reloadAndRender();
+    }
+  }
+
+  private async reloadAndRender(): Promise<void> {
+    const generation = ++this.renderGeneration;
+    await this.plugin.reloadPluginData();
+    if (!this.isVisible || generation !== this.renderGeneration) {
+      return;
+    }
+    this.containerEl.empty();
+    this.renderSettings();
+  }
+
+  private startDiskPoll(): void {
+    this.stopDiskPoll();
+    const windowEl = this.containerEl.ownerDocument.defaultView;
+    if (!windowEl) {
+      return;
+    }
+    this.diskPollTimer = windowEl.setInterval(() => {
+      void this.syncFromDiskIfChanged();
+    }, DISK_SYNC_POLL_MS);
+  }
+
+  private stopDiskPoll(): void {
+    if (this.diskPollTimer === null) {
+      return;
+    }
+    const windowEl = this.containerEl.ownerDocument.defaultView;
+    windowEl?.clearInterval(this.diskPollTimer);
+    this.diskPollTimer = null;
+  }
+
+  private async syncFromDiskIfChanged(): Promise<void> {
+    if (!this.isVisible) {
+      return;
+    }
+    const changed = await this.plugin.syncFromDiskIfChanged();
+    if (!changed || !this.isVisible) {
+      return;
+    }
+    const generation = ++this.renderGeneration;
+    this.containerEl.empty();
+    if (generation === this.renderGeneration) {
+      this.renderSettings();
+    }
+  }
+
+  private renderSettings(): void {
     // Interval multiplier setting with slider
     const multiplierSetting = new Setting(this.containerEl)
       .setName('Review interval multiplier')
@@ -116,6 +183,13 @@ export class SettingsTab extends PluginSettingTab {
       })();
     });
 
+    const multiplierNote = sliderContainer.createDiv(
+      'better-recall-settings__note setting-item-description',
+    );
+    multiplierNote.setText(
+      'Changing this rescales every existing card proportionally: stored intervals and future due dates move with the ratio. Cards already due stay due. Future reviews use the new spacing.',
+    );
+
     // Add a separator
     this.containerEl.createEl('hr');
 
@@ -133,19 +207,6 @@ export class SettingsTab extends PluginSettingTab {
             void this.plugin.savePluginData();
           });
         text.inputEl.type = 'password';
-      });
-
-    new Setting(this.containerEl)
-      .setName('Gemini model')
-      .setDesc('Model used for follow-up chat. Default: gemini-2.5-flash.')
-      .addText((text) => {
-        text
-          .setPlaceholder('gemini-2.5-flash')
-          .setValue(this.plugin.getSettings().geminiModel)
-          .onChange((value) => {
-            this.plugin.setGeminiModel(value.trim() || 'gemini-2.5-flash');
-            void this.plugin.savePluginData();
-          });
       });
 
     new Setting(this.containerEl)

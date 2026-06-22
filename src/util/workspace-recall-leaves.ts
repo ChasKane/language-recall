@@ -124,7 +124,10 @@ function removeEmptyTabsContainers(node: WorkspaceTreeNode): void {
   }
   for (let i = node.children.length - 1; i >= 0; i--) {
     const child = node.children[i];
-    if (child.type === 'tabs' && (!child.children || child.children.length === 0)) {
+    if (
+      child.type === 'tabs' &&
+      (!child.children || child.children.length === 0)
+    ) {
       node.children.splice(i, 1);
     }
   }
@@ -198,10 +201,10 @@ export function stripPersistedRecallLeavesInWorkspaceFile(
 ): boolean {
   try {
     // Dynamic require: fs/path are not available in Obsidian mobile.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    /* eslint-disable import/no-nodejs-modules, no-undef, @typescript-eslint/no-require-imports */
     const fs = require('fs') as typeof import('fs');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const path = require('path') as typeof import('path');
+    /* eslint-enable import/no-nodejs-modules, no-undef, @typescript-eslint/no-require-imports */
 
     const filePath = path.join(configDir, 'workspace.json');
     if (!fs.existsSync(filePath)) {

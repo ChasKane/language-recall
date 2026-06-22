@@ -1,10 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Notice, getIcon, setTooltip } from 'obsidian';
+import { Notice } from 'obsidian';
 import { RecallSubView } from './SubView';
 import BetterRecallPlugin from 'src/main';
 import { RecallView } from '.';
 import { Deck } from 'src/data/deck';
 import { CardEditor } from '../components/card-editor/CardEditor';
+import { createIconButton } from '../components/createIconButton';
 import {
   CardState,
   CardType,
@@ -97,25 +98,16 @@ export class CardEditorView extends RecallSubView {
   }
 
   private renderAiButton(parent: HTMLElement): void {
-    const aiButtonEl = parent.createDiv('better-recall-card-editor__ai-button');
-    aiButtonEl.setAttr('role', 'button');
-    aiButtonEl.setAttr('tabindex', '0');
-    if (this.followupMessages.length > 0) {
-      aiButtonEl.addClass('has-conversation');
-    }
-    setTooltip(
-      aiButtonEl,
-      this.followupMessages.length > 0
-        ? 'AI assistant (saved conversation)'
-        : 'Open AI assistant',
-    );
-    const brainIcon = getIcon('brain');
-    if (brainIcon) {
-      aiButtonEl.appendChild(brainIcon);
-    } else {
-      aiButtonEl.createSpan({ text: '🧠' });
-    }
-    aiButtonEl.onClickEvent(() => this.openFollowupChat());
+    createIconButton(parent, {
+      cls: 'better-recall-card-editor__ai-button',
+      icon: 'brain',
+      fallback: '🧠',
+      tooltip:
+        this.followupMessages.length > 0
+          ? 'AI assistant (saved conversation)'
+          : 'Open AI assistant',
+      onClick: () => this.openFollowupChat(),
+    }).toggleClass('has-conversation', this.followupMessages.length > 0);
   }
 
   private openFollowupChat(): void {
