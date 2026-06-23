@@ -17,6 +17,11 @@ For removals, use **Removed:** instead of **Change:** and note what replaced it 
 
 ## Entries
 
+### 2026-06-23 — Pass Obsidian community ESLint review
+- **Area:** plugin
+- **Change:** Removed forbidden ESLint disable directives; dropped Node `fs` sync workspace.json editing in favor of vault `DataAdapter`; replaced deprecated `activeLeaf`/`revealLeaf` with `getMostRecentLeaf`/`setActiveLeaf`; aligned settings UI strings with `obsidianmd/ui/sentence-case`.
+- **Reason:** Obsidian Community automated review (v1.0.8) failed on disallowed eslint-disable comments for sentence-case, no-deprecated, and import/no-nodejs-modules. Direct filesystem access was already a behavior warning; vault adapter is the supported path.
+
 ### 2026-06-18 — Taste Log introduced
 - **Area:** docs
 - **Change:** Added `docs/taste-log.md`; AGENTS.md **Taste Log** section (link at top, entry format, add on features/removals/refactors, update in same change as behavior).

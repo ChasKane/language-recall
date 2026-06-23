@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- settings descriptions use API and product names */
 import {
   Setting,
   PluginSettingTab,
@@ -196,11 +195,11 @@ export class SettingsTab extends PluginSettingTab {
     new Setting(this.containerEl)
       .setName('Gemini API key')
       .setDesc(
-        'Used for follow-up chat during card review. Create a key at aistudio.google.com/apikey. For desktop apps like Obsidian, set application restrictions to None.',
+        'Used for follow-up chat during card review. Create a key at aistudio.Google.com/apikey. For desktop apps like Obsidian, set application restrictions to none.',
       )
       .addText((text) => {
         text
-          .setPlaceholder('AIza…')
+          .setPlaceholder('Paste API key')
           .setValue(this.plugin.getSettings().geminiApiKey)
           .onChange((value) => {
             this.plugin.setGeminiApiKey(value.trim());
@@ -212,12 +211,12 @@ export class SettingsTab extends PluginSettingTab {
     new Setting(this.containerEl)
       .setName('System prompt')
       .setDesc(
-        "Optional instructions sent with every AI chat request (Gemini, Groq, and OpenRouter). Use this for your target language, proficiency level, preferred explanation style, or other standing context. Your text is prepended to the plugin's built-in prompt for the current card.",
+        "Optional instructions sent with every AI chat request (Gemini, groq, and openrouter). Use this for your target language, proficiency level, preferred explanation style, or other standing context. Your text is prepended to the plugin's built-in prompt for the current card.",
       )
       .addTextArea((text) => {
         text
           .setPlaceholder(
-            'Example: I am learning Brazilian Portuguese at B1 level. Explain grammar briefly and give one short example sentence.',
+            'Example: I am learning portuguese at an intermediate level. Explain grammar briefly and give one short example sentence.',
           )
           .setValue(this.plugin.getSettings().systemPrompt)
           .onChange((value) => {
@@ -299,7 +298,7 @@ export class SettingsTab extends PluginSettingTab {
       )
       .addText((text) => {
         text
-          .setPlaceholder('gsk_…')
+          .setPlaceholder('Paste API key')
           .setValue(this.plugin.getSettings().groqApiKey)
           .onChange((value) => {
             this.plugin.setGroqApiKey(value.trim());
@@ -309,13 +308,13 @@ export class SettingsTab extends PluginSettingTab {
       });
 
     new Setting(this.containerEl)
-      .setName('OpenRouter API key (optional fallback)')
+      .setName('Openrouter API key (optional fallback)')
       .setDesc(
-        'Last-resort fallback if Gemini and Groq fail. Free at openrouter.ai/keys.',
+        'Last-resort fallback if Gemini and groq fail. Free at openrouter.ai/keys.',
       )
       .addText((text) => {
         text
-          .setPlaceholder('sk-or-…')
+          .setPlaceholder('Paste API key')
           .setValue(this.plugin.getSettings().openRouterApiKey)
           .onChange((value) => {
             this.plugin.setOpenRouterApiKey(value.trim());

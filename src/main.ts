@@ -1,4 +1,4 @@
-import { Platform, Plugin } from 'obsidian';
+import { Plugin } from 'obsidian';
 import { registerCommands } from './commands';
 import {
   BetterRecallData,
@@ -16,10 +16,7 @@ import {
   detachAllRecallLeaves,
   pruneDuplicateRecallLeaves,
 } from './util/recall-leaves';
-import {
-  stripPersistedRecallLeavesInWorkspaceFile,
-  stripPersistedRecallLeavesWithAdapter,
-} from './util/workspace-recall-leaves';
+import { stripPersistedRecallLeavesWithAdapter } from './util/workspace-recall-leaves';
 
 export default class BetterRecallPlugin extends Plugin {
   public readonly algorithm = new AnkiAlgorithm();
@@ -31,12 +28,11 @@ export default class BetterRecallPlugin extends Plugin {
 
   /** Plugin entry: register views/commands only; heavy work runs after layout is ready. */
   async onload() {
-    if (!Platform.isMobileApp) {
-      stripPersistedRecallLeavesInWorkspaceFile(
-        this.app.vault.configDir,
-        FILE_VIEW_TYPE,
-      );
-    }
+    await stripPersistedRecallLeavesWithAdapter(
+      this.app.vault.adapter,
+      this.app.vault.configDir,
+      FILE_VIEW_TYPE,
+    );
 
     this.eventEmitter = new EventEmitter();
 
@@ -86,13 +82,6 @@ export default class BetterRecallPlugin extends Plugin {
 
   onunload() {
     detachAllRecallLeaves(this.app.workspace);
-    if (!Platform.isMobileApp) {
-      stripPersistedRecallLeavesInWorkspaceFile(
-        this.app.vault.configDir,
-        FILE_VIEW_TYPE,
-      );
-      return;
-    }
     void stripPersistedRecallLeavesWithAdapter(
       this.app.vault.adapter,
       this.app.vault.configDir,

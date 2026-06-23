@@ -16,10 +16,9 @@ export function getPreferredRecallLeaf(
     return null;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-deprecated -- activeLeaf is still the practical way to detect the focused recall pane
-  const activeLeaf = workspace.activeLeaf;
-  if (activeLeaf && leaves.includes(activeLeaf)) {
-    return activeLeaf;
+  const recentLeaf = workspace.getMostRecentLeaf();
+  if (recentLeaf && leaves.includes(recentLeaf)) {
+    return recentLeaf;
   }
 
   return leaves[0];
@@ -60,7 +59,6 @@ export async function activateRecallLeaf(
 ): Promise<WorkspaceLeaf> {
   const existing = getPreferredRecallLeaf(workspace);
   if (existing) {
-    await workspace.revealLeaf(existing);
     workspace.setActiveLeaf(existing, { focus });
     return existing;
   }
@@ -70,7 +68,6 @@ export async function activateRecallLeaf(
     type: FILE_VIEW_TYPE,
     state: {},
   });
-  await workspace.revealLeaf(leaf);
   workspace.setActiveLeaf(leaf, { focus });
   return leaf;
 }

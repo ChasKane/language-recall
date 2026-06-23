@@ -180,8 +180,7 @@ export class ReviewView extends RecallSubView {
 
   public render(): void {
     this.rootEl = this.recallView.rootEl.createDiv('better-recall-recall-view');
-    const keyTarget =
-      typeof activeDocument !== 'undefined' ? activeDocument : document;
+    const keyTarget = activeDocument;
     keyTarget.removeEventListener('keypress', this.handleKeyInput);
     keyTarget.addEventListener('keypress', this.handleKeyInput);
     this.renderBackButton(this.rootEl);
@@ -795,8 +794,7 @@ export class ReviewView extends RecallSubView {
 
   public onClose(): void {
     super.onClose();
-    const keyTarget =
-      typeof activeDocument !== 'undefined' ? activeDocument : document;
+    const keyTarget = activeDocument;
     keyTarget.removeEventListener('keypress', this.handleKeyInput);
     this.cardFrontEl?.querySelectorAll('a.internal-link').forEach((link) => {
       link.removeEventListener('click', this.handleInternalLinkClick);
