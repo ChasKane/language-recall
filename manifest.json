@@ -1,8 +1,8 @@
 {
 	"id": "language-recall",
 	"name": "Language Recall",
-	"version": "1.0.8",
-	"minAppVersion": "1.7.2",
+	"version": "1.0.9",
+	"minAppVersion": "1.4.4",
 	"description": "Add anki-like spaced repetition and recall to your vault with built-in language translation.",
 	"author": "Chas Kane",
 	"authorUrl": "https://github.com/ChasKane",
